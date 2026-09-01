@@ -41,11 +41,25 @@ class AppendEntries:
     """Ate onde o primario ja confirmou; a replica pode aplicar ate aqui."""
 
     def to_json(self) -> dict[str, Any]:
-        raise NotImplementedError
+        return {
+            "epoch": self.epoch,
+            "leader_id": self.leader_id,
+            "prev_idx": self.prev_idx,
+            "prev_epoch": self.prev_epoch,
+            "entries": [e.to_json() for e in self.entries],
+            "leader_commit": self.leader_commit,
+        }
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "AppendEntries":
-        raise NotImplementedError
+        return cls(
+            epoch=int(data["epoch"]),
+            leader_id=str(data["leader_id"]),
+            prev_idx=int(data["prev_idx"]),
+            prev_epoch=int(data["prev_epoch"]),
+            entries=[LogEntry.from_json(e) for e in (data.get("entries") or [])],
+            leader_commit=int(data.get("leader_commit", 0)),
+        )
 
 
 @dataclass
@@ -63,11 +77,21 @@ class AppendAck:
     node_id: str = ""
 
     def to_json(self) -> dict[str, Any]:
-        raise NotImplementedError
+        return {
+            "epoch": self.epoch,
+            "success": self.success,
+            "match_idx": self.match_idx,
+            "node_id": self.node_id,
+        }
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "AppendAck":
-        raise NotImplementedError
+        return cls(
+            epoch=int(data["epoch"]),
+            success=bool(data["success"]),
+            match_idx=int(data["match_idx"]),
+            node_id=str(data.get("node_id", "")),
+        )
 
 
 @dataclass
@@ -80,14 +104,24 @@ class RequestVote:
     last_epoch: int
     """O log do candidato. O eleitor so vota se este log estiver **pelo menos tao
     atualizado** quanto o seu: e essa restricao que garante que nenhuma operacao
-    ja confirmada seja perdida na troca de primario."""
+    ja confirmada seja perdida."""
 
     def to_json(self) -> dict[str, Any]:
-        raise NotImplementedError
+        return {
+            "epoch": self.epoch,
+            "candidate_id": self.candidate_id,
+            "last_idx": self.last_idx,
+            "last_epoch": self.last_epoch,
+        }
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "RequestVote":
-        raise NotImplementedError
+        return cls(
+            epoch=int(data["epoch"]),
+            candidate_id=str(data["candidate_id"]),
+            last_idx=int(data["last_idx"]),
+            last_epoch=int(data["last_epoch"]),
+        )
 
 
 @dataclass
@@ -102,8 +136,18 @@ class VoteReply:
     para o log estruturado e para depurar os testes de failover."""
 
     def to_json(self) -> dict[str, Any]:
-        raise NotImplementedError
+        return {
+            "epoch": self.epoch,
+            "granted": self.granted,
+            "voter_id": self.voter_id,
+            "reason": self.reason,
+        }
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "VoteReply":
-        raise NotImplementedError
+        return cls(
+            epoch=int(data["epoch"]),
+            granted=bool(data["granted"]),
+            voter_id=str(data.get("voter_id", "")),
+            reason=str(data.get("reason", "")),
+        )

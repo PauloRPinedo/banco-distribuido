@@ -9,6 +9,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Prefere o interpretador do venv do projeto, se existir.
+PYTHON="${PYTHON:-${ROOT}/.venv/bin/python}"
+[[ -x "$PYTHON" ]] || PYTHON="$(command -v python3 || command -v python)"
 CONFIG="${ROOT}/config/cluster.json"
 DATA_DIR="${ROOT}/data"
 NODES=3
@@ -31,8 +34,9 @@ mkdir -p "$DATA_DIR"
 IDS=(A B C)
 for i in $(seq 0 $((NODES - 1))); do
   ID="${IDS[$i]}"
-  python -m bank.server --config "$CONFIG" --id "$ID" --data-dir "$DATA_DIR" \
-    > "${DATA_DIR}/${ID}.out" 2>&1 &
+  # setsid: o no sobrevive ao fechamento do terminal que o iniciou.
+  setsid "$PYTHON" -m bank.server --config "$CONFIG" --id "$ID" --data-dir "$DATA_DIR" \
+    > "${DATA_DIR}/${ID}.out" 2>&1 < /dev/null &
   echo "$ID $!" >> "${DATA_DIR}/pids"
   echo "no ${ID} iniciado (pid $!)"
 done
@@ -43,4 +47,4 @@ echo "  python cli/banco_cli.py status"
 echo "Para derrubar o primario (RF-16, historia de usuario 10):"
 echo "  ./scripts/kill_primary.sh"
 echo "Para parar tudo:"
-echo "  awk '{print \$2}' ${DATA_DIR}/pids | xargs kill"
+echo "  ./scripts/stop_cluster.sh"

@@ -13,6 +13,10 @@ no stderr.
 
 from __future__ import annotations
 
+import json
+import sys
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -21,11 +25,18 @@ class StructuredLogger:
     """Escritor de log JSONL, seguro entre threads."""
 
     def __init__(self, node_id: str, path: Path, also_stderr: bool = True) -> None:
-        raise NotImplementedError
+        self.node_id = node_id
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.also_stderr = also_stderr
+        self._lock = threading.Lock()
+        self._bound: dict[str, Any] = {}
+        self._handle = open(self.path, "a", encoding="utf-8")
 
     def bind(self, **fields: Any) -> None:
         """Fixa campos incluidos em todos os eventos seguintes (``role``, ``epoch``)."""
-        raise NotImplementedError
+        with self._lock:
+            self._bound.update(fields)
 
     def event(self, name: str, **fields: Any) -> None:
         """Registra um evento. Nomes usados pelos testes de integracao:
@@ -36,4 +47,21 @@ class StructuredLogger:
         ``vote_denied``, ``became_primary``, ``stepped_down``, ``log_truncated``,
         ``snapshot_saved``, ``recovered``, ``fault_injected``.
         """
-        raise NotImplementedError
+        record = {"ts": round(time.time(), 6), "node_id": self.node_id}
+        with self._lock:
+            record.update(self._bound)
+            record["event"] = name
+            record.update({k.rstrip("_"): v for k, v in fields.items()})
+            line = json.dumps(record, separators=(",", ":"), default=str)
+            try:
+                self._handle.write(line + "\n")
+                self._handle.flush()
+            except ValueError:
+                return  # arquivo ja fechado no encerramento
+            if self.also_stderr:
+                print(line, file=sys.stderr, flush=True)
+
+    def close(self) -> None:
+        with self._lock:
+            if not self._handle.closed:
+                self._handle.close()

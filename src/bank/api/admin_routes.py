@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -24,6 +24,7 @@ class StatusResponse(BaseModel):
     leader_id: str | None
     commit_index: int
     applied_idx: int
+    last_idx: int
     peers_alive: dict[str, bool]
     quorum_size: int
     write_available: bool
@@ -42,5 +43,38 @@ class FaultRequest(BaseModel):
     seed: int | None = None
 
 
-def register(router_: APIRouter) -> None:
-    raise NotImplementedError
+def _ctx(request: Request):
+    return request.app.state.ctx
+
+
+@router.get("/status", response_model=StatusResponse)
+def status(request: Request) -> StatusResponse:
+    """Historia de usuario 11: qual no esta ativo e quem e o primario."""
+    return StatusResponse(**_ctx(request).status())
+
+
+@router.get("/metrics")
+def metrics(request: Request) -> dict:
+    """RF-15: metricas de desempenho e estado."""
+    ctx = _ctx(request)
+    data = ctx.metrics.snapshot()
+    data.update(
+        {
+            "node_id": ctx.config.self_id,
+            "role": ctx.node_state.role.value,
+            "epoch": ctx.node_state.epoch,
+            "commit_index": ctx.log.commit_index,
+            "applied_idx": ctx.store.last_applied_idx,
+            "locks_held": ctx.locks.held_count(),
+        }
+    )
+    return data
+
+
+@router.post("/fault")
+def inject_fault(request: Request, body: FaultRequest) -> dict:
+    """RF-16: injeta falhas em tempo de execucao, para os testes de tolerancia."""
+    ctx = _ctx(request)
+    config = ctx.faults.configure(**body.model_dump())
+    ctx.logger.event("fault_injected", **config.__dict__)
+    return {"faults": config.__dict__, "active": ctx.faults.active}

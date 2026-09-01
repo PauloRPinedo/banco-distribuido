@@ -16,7 +16,9 @@ aqui e uma ferramenta de teste, e ``/admin/status`` mostra quando esta ativa.
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+import threading
+import time
+from dataclasses import asdict, dataclass, replace
 
 
 @dataclass
@@ -42,19 +44,39 @@ class FaultInjector:
 
     def __init__(self, seed: int | None = None) -> None:
         self._rng = random.Random(seed)
+        self._lock = threading.Lock()
         self.config = FaultConfig()
 
     def configure(self, **fields: object) -> FaultConfig:
         """Atualiza a configuracao em tempo de execucao e devolve a nova."""
-        raise NotImplementedError
+        with self._lock:
+            seed = fields.pop("seed", None)
+            if seed is not None:
+                self._rng = random.Random(int(seed))
+            clean = {k: v for k, v in fields.items() if v is not None}
+            unknown = set(clean) - set(asdict(self.config))
+            if unknown:
+                raise ValueError(f"campos de falha desconhecidos: {sorted(unknown)}")
+            self.config = replace(self.config, **clean)
+            return self.config
+
+    @property
+    def active(self) -> bool:
+        return self.config != FaultConfig()
 
     def should_drop_replication(self) -> bool:
         """Sorteia se a proxima mensagem de replicacao sera descartada."""
-        raise NotImplementedError
+        with self._lock:
+            probability = self.config.drop_replication
+            if probability <= 0.0:
+                return False
+            return self._rng.random() < probability
 
     def maybe_delay(self) -> None:
         """Aplica o atraso configurado, se houver."""
-        raise NotImplementedError
+        delay_ms = self.config.delay_ms
+        if delay_ms > 0:
+            time.sleep(delay_ms / 1000.0)
 
     def is_frozen(self) -> bool:
-        raise NotImplementedError
+        return self.config.freeze
