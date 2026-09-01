@@ -1,0 +1,20 @@
+{
+  "cluster_id": "banco-usp",
+  "nodes": [
+    {"id": "A", "host": "127.0.0.1", "port": 8001},
+    {"id": "B", "host": "127.0.0.1", "port": 8002},
+    {"id": "C", "host": "127.0.0.1", "port": 8003}
+  ],
+  "timing": {
+    "heartbeat_interval_ms": 150,
+    "election_timeout_min_ms": 800,
+    "election_timeout_max_ms": 1500,
+    "replication_timeout_ms": 500
+  },
+  "storage": {
+    "data_dir": "./data",
+    "fsync_mode": "batch",
+    "group_commit_window_ms": 5,
+    "snapshot_every_entries": 1000
+  }
+}

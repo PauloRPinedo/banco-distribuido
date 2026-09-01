@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+
+# estado dos servidores: WAL, snapshots, epoch/voto e logs
+data/
+
+# configuracao efetiva do cluster (gerada a partir de cluster.example.json)
+config/cluster.json
+
+.pytest_cache/

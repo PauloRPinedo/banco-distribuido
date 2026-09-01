@@ -1,0 +1,1 @@
+"""Log estruturado e metricas."""
