@@ -172,7 +172,7 @@ sequenceDiagram
     Note over P: maioria alcancada (A + B de 3)
     Note over P: 5. commit_index=42, aplica, solta locks
     P-->>Cli: 200 {applied_idx: 42, balances: {...}}
-    C-->>P: ACK match_idx=42 (chega depois; nao atrasa a resposta)
+    C-->>P: ACK match_idx=42 -- chega depois, nao atrasa a resposta
 ```
 
 Pontos que nao podem ser trocados de ordem:
@@ -212,6 +212,14 @@ segurando um lock e esperando o outro. A solucao e **ordem total**: os locks sao
 sempre tomados em ordem crescente de id de conta (`Operation.touched_accounts()`
 ja devolve a tupla ordenada), o que torna o ciclo impossivel.
 
+Ha ainda um terceiro nivel, descoberto ao testar concorrencia de verdade: os locks por
+conta dizem **quais** operacoes podem correr em paralelo, mas a aplicacao ao
+`AccountStore` mexe em estruturas compartilhadas (`last_applied_idx`, `history`,
+`applied`). Duas threads segurando contas diferentes aplicariam ao mesmo tempo e
+corromperiam a ordem do log. Por isso existe um **`store_lock`** unico por no, que
+serializa toda aplicacao -- e tambem toda leitura, senao uma consulta feita entre o
+debito e o credito de uma transferencia veria dinheiro sumido (RF-07).
+
 Leituras sao servidas pelo primario por padrao. Uma replica so aceita leitura com
 `?stale=true` explicito, e a resposta traz `stale: true` e o `applied_idx`, para o
 cliente saber o quanto o dado pode estar atrasado.
@@ -236,8 +244,13 @@ o RPC de replicacao garante que o heartbeat sempre carregue `epoch` e
 
 O timeout de eleicao e **sorteado** em `[800, 1500] ms` a cada rodada. Sem a
 aleatoriedade, as duas replicas viram candidatas ao mesmo tempo, dividem os votos
-e a eleicao nao converge. O sorteio usa a semente da configuracao, para os testes
-serem reproduziveis (RNF-06).
+e a eleicao nao converge.
+
+A semente do sorteio e **derivada por no** (`semente global + crc32(id do no)`), nunca a
+global pura. Este detalhe custou caro: com a mesma semente nos tres, todos sorteiam o
+**mesmo** timeout, viram candidatos juntos e dividem os votos indefinidamente -- o teste
+de integracao chegou ao epoch 41 sem eleger ninguem. Derivar de forma estavel preserva
+RNF-06: a mesma semente ainda reproduz a mesma execucao.
 
 A relacao `heartbeat << timeout_min` precisa ser respeitada: se forem proximos,
 uma lentidao momentanea derruba um primario saudavel e o cluster fica trocando de
@@ -326,26 +339,59 @@ O `op_id` e gerado **uma vez por operacao logica** e reutilizado em todas as
 retentativas. Gerar um novo a cada tentativa transformaria uma transferencia
 repetida em duas -- e o bug que o projeto inteiro existe para evitar.
 
-## 9. Desempenho
+## 9. Desempenho -- o que foi medido
 
 RNF-04 pede 500 TPS e RNF-05 pede p99 abaixo de 200 ms no ambiente local.
 
-O gargalo nao e a rede local nem o Python: e o **fsync**. Um fsync por operacao
-limita o throughput ao que o disco aguenta de sincronizacoes por segundo. Duas
-medidas atacam isso:
+Medido com `scripts/bench.py`, transferencias entre 200 contas, os **tres nos e o
+gerador de carga na mesma maquina** (8 nucleos):
 
-- **Locks por conta**, ja descritos: operacoes sobre contas diferentes replicam em
-  paralelo.
-- **Group commit**: escritas concorrentes que chegam dentro de uma janela de ~5 ms
-  compartilham um unico fsync. Custa alguns milissegundos de latencia e multiplica
-  o throughput.
+| Concorrencia | TPS | p50 | p99 |
+|---|---|---|---|
+| 1 | 41 | 24 ms | 33 ms |
+| 4 | 148 | 25 ms | -- |
+| 8 | 229 | 33 ms | **53 ms** |
+| 16 | 270 | 55 ms | **91 ms** |
+| 32 | 266 | 99 ms | 272 ms |
+| 64 | 268 | 202 ms | -- |
 
-O modo e configuravel (`--fsync always|batch|off`) e `scripts/bench.py` produz a
-tabela de comparacao para o relatorio. O modo `off` serve apenas para medir o teto
-teorico -- ele nao satisfaz RNF-02 e nao deve ser usado nos testes de failover.
+**RNF-05 e cumprido** ate 16 clientes simultaneos (p99 de 91 ms). **RNF-04 nao e
+cumprido**: a vazao satura em torno de **270 TPS**, e acrescentar concorrencia so
+aumenta a fila -- a latencia cresce proporcionalmente enquanto o TPS fica parado.
 
-O benchmark termina sempre com uma **auditoria**: se a soma dos saldos nao bate com
-a inicial, o numero de TPS e irrelevante.
+### Por que 270, e o que **nao** e a causa
+
+Quatro hipoteses foram testadas e descartadas:
+
+| Hipotese | Teste | Resultado |
+|---|---|---|
+| O fsync domina | rodar com `--fsync always`, `batch` e `off` | 253 / 246 / 195 TPS -- **sem diferenca util**; `off` nao e mais rapido |
+| Contencao dos locks por conta | 200 contas vs 2000 contas | 256 vs 274 TPS -- praticamente igual |
+| Serializacao JSON e escrita do WAL | medicao isolada | 0,027 ms por entrada, teto de ~36.000/s |
+| CPU saturada | `ps` durante a carga | primario a 30%, replicas a 18%, 8 nucleos ociosos |
+
+O round-trip de replicacao medido dentro do primario e de **11 ms** (p50) e **nao cresce**
+sob carga, enquanto o `submit` completo vai a 47-99 ms. Ou seja: o tempo esta em espera,
+nao em trabalho. O gargalo e o modelo de uma thread por requisicao do uvicorn disputando
+o GIL com as threads de replicacao -- o custo de coordenacao do CPython, nao a
+durabilidade nem o desenho do protocolo.
+
+Duas otimizacoes ja feitas, com efeito medido:
+
+- **Replicacao em segundo plano** (uma thread por replica, em vez de um pool por
+  operacao): agrupa N escritas concorrentes em um unico AppendEntries.
+- **fsync fora do lock de ordenacao** (`append_buffered` + `wait_durable`): antes, 32
+  threads enfileiravam 32 fsyncs; agora dividem um. Sozinha, essa mudanca levou de
+  **136 para 256 TPS** e cortou a latencia pela metade.
+
+Para chegar a 500 TPS seria preciso trocar o transporte entre nos por I/O assincrono
+(evitando a disputa de threads pelo GIL) ou distribuir os nos em maquinas separadas.
+Nenhuma das duas altera o protocolo, e por isso ficam registradas como trabalho futuro
+em vez de mudanca de desenho.
+
+O benchmark termina sempre com uma **auditoria**: se a soma dos saldos nao bate com a
+inicial, o numero de TPS e irrelevante. Em todas as execucoes acima o total ficou
+inalterado e identico nos tres nos.
 
 ## 10. Observabilidade
 
@@ -401,9 +447,14 @@ python cli/banco_cli.py auditoria
 python cli/banco_cli.py transferir alice bob 10.00   # continua funcionando
 python cli/banco_cli.py auditoria                    # total inalterado
 
-pytest -q
-python scripts/bench.py --ops 5000 --concurrency 32
+pytest -q                                            # 59 passam, 3 pendentes
+python scripts/bench.py --ops 2000 --concurrency 16  # TPS e p99
+
+./scripts/stop_cluster.sh                            # para tudo
 ```
+
+Para rodar em **duas maquinas** na mesma rede, siga
+[`teste_em_duas_maquinas.md`](teste_em_duas_maquinas.md).
 
 ## 13. Rastreabilidade dos requisitos
 
@@ -427,10 +478,12 @@ python scripts/bench.py --ops 5000 --concurrency 32
 | RNF-01 corretude | Auditoria em todos os testes de falha |
 | RNF-02 durabilidade | fsync antes do ACK, quorum antes da resposta |
 | RNF-03 disponibilidade | Timeout de eleicao 800-1500 ms |
-| RNF-04 / RNF-05 desempenho | Group commit + locks por conta; `scripts/bench.py` |
+| RNF-04 desempenho | **nao cumprido**: satura em ~270 TPS -- ver secao 9 |
+| RNF-05 latencia | cumprido ate 16 clientes (p99 91 ms); ver secao 9 |
 | RNF-06 reprodutibilidade | Semente unica em timeouts e injecao de falhas |
 | RNF-07 observabilidade | `observability/logging.py`, JSONL |
 | RNF-08 modularidade | Um dono por pacote (tabela do inicio) |
+| RF-07 leitura consistente | `store_lock` tambem nas leituras; `test_leitura_ve_estado_consistente` |
 | RNF-09 portabilidade | `pip install -e .` + `run_cluster.sh` |
 | RNF-10 documentacao | Este documento + docstrings por modulo |
 | RNF-11 disponibilidade | Leitura enquanto houver 1 no; escrita enquanto houver maioria |
@@ -440,11 +493,16 @@ python scripts/bench.py --ops 5000 --concurrency 32
 | Fase | Escopo | Situacao |
 |---|---|---|
 | 1 | Arquitetura, estrutura de modulos, interfaces | **concluida** |
-| 2 | No unico: dominio, WAL, API de cliente, CLI | pendente |
-| 3 | Replicacao com quorum, idempotencia | pendente |
-| 4 | Heartbeat, eleicao, failover, reintegracao | pendente |
-| 5 | Injecao de falhas, metricas, benchmark, suite completa | pendente |
+| 2 | No unico: dominio, WAL, API de cliente, CLI | **concluida** |
+| 3 | Replicacao com quorum, idempotencia | **concluida** |
+| 4 | Heartbeat, eleicao, failover, reintegracao | **concluida** |
+| 5 | Injecao de falhas, metricas, benchmark, suite completa | **parcial** |
 
-Na fase 1 os modulos existem com tipos, assinaturas e docstrings; os corpos de
-logica levantam `NotImplementedError` e os testes ficam marcados com `skip`
-indicando a fase em que serao implementados.
+O prototipo esta funcional: replica, elege, faz failover e se recupera. A suite tem
+**59 testes passando e 3 marcados como pendentes** -- os de injecao de falhas
+(`tests/integration/test_faults.py`) e o de split-brain com no congelado, que dependem
+de exercitar `POST /admin/fault` ponta a ponta e ficam para a proxima rodada.
+
+Diagramas UML em [`uml.md`](uml.md) (Mermaid, renderiza no GitHub) e em
+[`uml/`](uml/) (PlantUML, para exportar). Guia de execucao em duas maquinas em
+[`teste_em_duas_maquinas.md`](teste_em_duas_maquinas.md).

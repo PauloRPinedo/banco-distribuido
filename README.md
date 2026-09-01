@@ -15,7 +15,11 @@ Universidade de Sao Paulo -- ICMC, campus Sao Carlos
 ## Documentacao
 
 - **[`docs/arquitetura.md`](docs/arquitetura.md)** -- documento principal: desenho do sistema,
-  protocolo de replicacao, eleicao de primario, decisoes e rastreabilidade dos requisitos.
+  protocolo de replicacao, eleicao de primario, decisoes, medicoes e rastreabilidade dos requisitos.
+- **[`docs/uml.md`](docs/uml.md)** -- diagramas UML de classes, sequencia e estados (Mermaid,
+  renderiza direto no GitHub). Versoes PlantUML em [`docs/uml/`](docs/uml/).
+- **[`docs/teste_em_duas_maquinas.md`](docs/teste_em_duas_maquinas.md)** -- passo a passo para
+  rodar o cluster em duas computadoras na rede local e demonstrar o failover.
 - [`docs/proposta_banco_distribuido_simples.md`](docs/proposta_banco_distribuido_simples.md)
   -- proposta original entregue.
 
@@ -49,19 +53,27 @@ python cli/banco_cli.py auditoria
 python cli/banco_cli.py transferir alice bob 10.00   # continua funcionando
 python cli/banco_cli.py auditoria                    # total inalterado
 
-pytest -q
+pytest -q                    # 59 passam, 3 pendentes
+./scripts/stop_cluster.sh    # para o cluster
 ```
+
+Para rodar em **duas maquinas**, siga [`docs/teste_em_duas_maquinas.md`](docs/teste_em_duas_maquinas.md).
 
 ## Estado da implementacao
 
 | Fase | Escopo | Situacao |
 |---|---|---|
 | 1 | Arquitetura, estrutura de modulos, interfaces | **concluida** |
-| 2 | No unico: dominio, WAL, API de cliente, CLI | pendente |
-| 3 | Replicacao com quorum, idempotencia | pendente |
-| 4 | Heartbeat, eleicao, failover, reintegracao | pendente |
-| 5 | Injecao de falhas, metricas, benchmark, suite completa | pendente |
+| 2 | No unico: dominio, WAL, API de cliente, CLI | **concluida** |
+| 3 | Replicacao com quorum, idempotencia | **concluida** |
+| 4 | Heartbeat, eleicao, failover, reintegracao | **concluida** |
+| 5 | Injecao de falhas, metricas, benchmark, suite completa | **parcial** |
 
-Na fase 1 os modulos existem com tipos, assinaturas e docstrings; os corpos de logica
-levantam `NotImplementedError` e os testes ficam marcados com `skip` indicando a fase em que
-serao implementados. `pytest -q` deve reportar **48 testes, todos skipped**.
+O prototipo e funcional: replica com quorum, elege primario, faz failover automatico e
+reintegra um no reiniciado. `pytest -q` reporta **59 testes passando e 3 pendentes** (os
+de injecao de falhas e split-brain, que ficam para a proxima rodada).
+
+Uma ressalva honesta sobre desempenho: **RNF-04 (500 TPS) nao e cumprido** -- a vazao
+satura em ~270 TPS nesta maquina. RNF-05 (p99 < 200 ms) e cumprido ate 16 clientes
+simultaneos. A secao 9 de [`docs/arquitetura.md`](docs/arquitetura.md) mostra as medicoes
+e as quatro hipoteses de gargalo que foram testadas e descartadas.
