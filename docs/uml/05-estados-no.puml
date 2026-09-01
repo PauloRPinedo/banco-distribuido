@@ -1,0 +1,30 @@
+@startuml estados-no
+' Ciclo de vida do papel de um no (RF-09, RF-12).
+' Renderizar:  plantuml -tsvg docs/uml/05-estados-no.puml
+skinparam shadowing false
+title Papeis de um no
+
+[*] --> REPLICA : boot\n(snapshot + replay do WAL)
+note right of REPLICA
+  Um no **sempre** sobe como replica, mesmo
+  que fosse primario antes de cair: quem
+  manda e decidido pela eleicao, nao pela
+  memoria do proprio no.
+end note
+
+REPLICA --> CANDIDATE : sem heartbeat por\n800-1500 ms (sorteado)
+CANDIDATE --> PRIMARY : maioria dos votos\n-> NOOP do novo epoch
+CANDIDATE --> REPLICA : perdeu a eleicao
+CANDIDATE --> REPLICA : viu epoch maior\n(ja ha primario)
+CANDIDATE --> CANDIDATE : empate -> novo epoch,\nnovo timeout sorteado
+PRIMARY --> REPLICA : recebeu epoch maior\n(**fencing**)
+
+state PRIMARY {
+  [*] --> ComQuorum
+  ComQuorum --> SomenteLeitura : maioria inalcancavel
+  SomenteLeitura --> ComQuorum : maioria volta
+  ComQuorum : aceita escritas e leituras
+  SomenteLeitura : recusa escritas (503 read_only)\naceita leituras e auditoria
+}
+
+@enduml
