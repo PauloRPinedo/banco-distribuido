@@ -1,0 +1,620 @@
+# SPECS — Especificação técnica
+
+Como o sistema funciona por dentro: protocolos, formatos, API e decisões de
+desenho. Os requisitos (F-xx, RF-xx, RNF-xx) vêm de [`proposta.md`](proposta.md);
+o calendário de execução está no [`ROADMAP.md`](ROADMAP.md).
+
+---
+
+## 1. Visão geral
+
+De 2 a 3 servidores mantêm **a mesma base de contas inteira**. Não há divisão de
+clientes entre servidores.
+
+```
+        cliente (CLI)
+             |
+     +-------+-------+
+     |       |       |
+   nó A    nó B    nó C
+ PRIMÁRIO  réplica  réplica
+```
+
+Só o primário aceita escritas. As réplicas recebem cada operação por um único RPC
+(`/interno/replicar`), que serve ao mesmo tempo de replicação e de *heartbeat*.
+
+**A consequência mais importante deste desenho:** como todas as contas estão em
+todos os nós, uma transferência entre duas contas é sempre **local ao primário** —
+débito e crédito acontecem na mesma máquina, na mesma entrada de log. Não existe
+*commit* em duas fases neste projeto. É a maior simplificação do sistema, e é ela
+que faz RF-05 (atomicidade) sair de graça.
+
+### Camadas
+
+```
+  interface/   servidor HTTP, rotas, CLI, painel
+       |
+  cluster/     replicação, eleição, concorrência
+       |
+  dominio/     contas, dinheiro, operações   <- puro, sem rede nem disco
+       |
+  persistencia/ WAL, recuperação
+```
+
+`dominio/` não importa nada de rede nem de disco. A mesma sequência de entradas de
+log produz exatamente o mesmo estado em qualquer nó, e é essa pureza que faz a
+replicação por log e a recuperação por *replay* funcionarem.
+
+---
+
+## 2. Modelo de falhas e garantias
+
+**O que assumimos que pode acontecer**
+
+- Um nó para de repente (queda de processo, laptop desligado).
+- Um nó fica lento (disco ocupado, rede congestionada).
+- Mensagens atrasam-se, perdem-se ou chegam fora de ordem.
+- A rede parte-se em dois lados que não se falam.
+
+**O que assumimos que não acontece**
+
+- Um nó mentir: enviar dados errados de propósito, forjar mensagens de outro nó.
+  O modelo é *crash-stop* e lentidão, nunca comportamento malicioso (bizantino).
+- Corrupção silenciosa de disco.
+
+**O que o sistema garante**
+
+| Garantia | Como |
+|---|---|
+| A soma dos saldos nunca muda por causa de uma falha | Uma transferência é uma única entrada de log, aplicada por uma única função |
+| Uma operação confirmada ao cliente sobrevive à queda do primário | Só se confirma depois de estar em disco (`fsync`) na maioria dos nós |
+| Nunca existem dois primários a aceitar escritas no mesmo `epoch` | Voto por maioria + `epoch` (secção 8) |
+| Uma operação repetida pelo cliente move o dinheiro uma só vez | Deduplicação por `op_id` (secção 3.3) |
+
+**O que o sistema não garante**
+
+- Aceitar escritas quando a maioria dos nós está inacessível. Nesse caso responde
+  `503 sem_quorum` e continua a servir leituras. Recusar é a única resposta
+  correta: não há como tornar uma escrita durável sozinho.
+
+---
+
+## 3. Modelo de dados
+
+### 3.1 Dinheiro
+
+Todo valor monetário é um **inteiro de centavos**. Nunca `float`, em nenhum ponto
+do sistema.
+
+```python
+saldo_centavos: int    # 12345 significa R$ 123,45
+```
+
+A razão não é estética. RNF-01 exige que a soma de todos os saldos seja constante,
+e é verificada em teste após milhares de operações sorteadas. Com ponto flutuante
+essa soma desvia-se por arredondamento, o teste falha, e o erro parece um erro de
+replicação — perde-se um dia a depurar o protocolo por causa de `0,1 + 0,2`.
+
+A conversão para `int` acontece **uma só vez**, na fronteira: quando o CLI ou a API
+recebe o texto `"123.45"`. Usa-se `decimal.Decimal` para converter, nunca `float`.
+Daí para dentro só circulam centavos.
+
+### 3.2 Conta
+
+| Campo | Tipo | Regra |
+|---|---|---|
+| `id` | `str` | 1 a 32 caracteres de `[a-z0-9_-]`. Único |
+| `saldo_centavos` | `int` | Nunca negativo (RF-06) |
+| `criada_em` | `float` | Instante Unix |
+
+### 3.3 Entrada de log
+
+É a unidade de replicação, de durabilidade e do extrato. Uma linha JSON:
+
+```json
+{"indice": 42, "epoch": 7, "op_id": "3f1c8a2e", "tipo": "transferencia",
+ "dados": {"de": "alice", "para": "bob", "valor_centavos": 5000},
+ "instante": 1756742400.12}
+```
+
+| Campo | Papel |
+|---|---|
+| `indice` | Índice global, começa em 1, contíguo, sem buracos |
+| `epoch` | Mandato do primário que criou a entrada |
+| `op_id` | Identificador gerado **pelo cliente**. Chave de deduplicação |
+| `tipo` | `criar_conta`, `deposito`, `saque`, `transferencia`, `noop` |
+| `dados` | Argumentos da operação |
+| `instante` | Momento em que o primário aceitou. Só informativo |
+
+**O `op_id` é gerado pelo cliente, não pelo servidor.** É o que torna a retentativa
+segura: se o cliente não recebe resposta e repete a transferência, o servidor
+reconhece o `op_id` já aplicado e devolve o resultado guardado, sem mover o
+dinheiro outra vez (RF-13). Se o servidor gerasse o identificador, a segunda
+tentativa seria uma operação nova e o dinheiro moveria-se duas vezes.
+
+A **transferência é uma única entrada**, aplicada por uma única função. Não existe
+estado intermédio em que o dinheiro saiu de uma conta e ainda não entrou na outra.
+Daí vem RF-05.
+
+### 3.4 Estado de cada nó
+
+| Onde | O quê | Durabilidade |
+|---|---|---|
+| `dados/<id>/wal.jsonl` | Log de entradas | `fsync` antes de confirmar |
+| `dados/<id>/estado.json` | `epoch` e `votou_em` | `fsync` **antes** de usar numa resposta |
+| `dados/<id>/servidor.log` | Eventos, uma linha JSON cada | Escrita simples |
+| memória | Saldos, extrato, `op_id` aplicados, `indice_commit` | Reconstruído no arranque |
+
+`epoch` e `votou_em` gravam-se em disco **antes** de o nó responder a um pedido de
+voto. Um nó que vota, cai e esquece o voto, votaria outra vez no mesmo `epoch` — e
+aí dois candidatos diferentes poderiam somar maioria. É o único ponto do sistema em
+que um `fsync` está entre o cálculo e a resposta por razões de correção, e não de
+durabilidade.
+
+---
+
+## 4. Persistência
+
+### 4.1 WAL
+
+Ficheiro de texto, uma entrada de log por linha, formato JSONL. Só se acrescenta ao
+fim; nunca se reescreve uma linha existente.
+
+```
+{"indice":1,"epoch":1,"op_id":"a1","tipo":"criar_conta",...}
+{"indice":2,"epoch":1,"op_id":"b2","tipo":"deposito",...}
+```
+
+Escrever significa: `write` + `flush` + `os.fsync`. Só depois do `fsync` é que a
+entrada conta como durável, no primário e em cada réplica.
+
+Escolheu-se JSONL em vez de um formato binário por ser legível: quando o failover
+se comporta de forma estranha durante a demonstração, abrir o WAL dos três nós lado
+a lado com `tail` responde à pergunta em segundos.
+
+### 4.2 Recuperação no arranque (RF-12)
+
+1. Ler `estado.json` → `epoch` e `votou_em`.
+2. Ler o WAL linha a linha e aplicar cada entrada ao estado em memória.
+3. Se a última linha estiver truncada (o processo morreu a meio de uma escrita),
+   descartá-la e truncar o ficheiro nesse ponto. Uma linha incompleta nunca foi
+   confirmada a ninguém.
+4. Arrancar **sempre como réplica**, mesmo que este nó fosse o primário antes de
+   cair. Quem manda decide-se por eleição, nunca pelo que o nó se lembra de si.
+
+**Não há snapshots.** O estado reconstrói-se sempre por *replay* completo do WAL.
+Numa demonstração o log tem centenas ou milhares de entradas e o *replay* demora
+milissegundos; um mecanismo de snapshot custaria umas duzentas linhas e um conjunto
+novo de casos extremos para não resolver problema nenhum aqui.
+
+---
+
+## 5. Concorrência
+
+Três níveis, cada um com o seu mecanismo.
+
+**Entre nós** — resolvido por construção. Só o primário escreve, e é ele que ordena
+as operações ao atribuir o `indice`. Não existe escrita concorrente entre
+servidores.
+
+**Entre contas** — *locks* por conta. Um *lock* global serializaria o banco inteiro
+e tornaria RNF-04 impossível; com *locks* por conta, transferências sobre contas
+diferentes correm em paralelo.
+
+O risco que isto cria é o *deadlock* clássico: `alice→bob` e `bob→alice` ao mesmo
+tempo, cada uma a segurar um *lock* e à espera do outro. A solução é **ordem
+total**: os *locks* adquirem-se sempre por ordem crescente do id da conta. Como
+todas as operações seguem a mesma ordem, o ciclo de espera é impossível. A operação
+devolve as contas que toca já ordenadas, para que ninguém tenha de se lembrar da
+regra no ponto de uso.
+
+**Dentro de um nó** — um `lock` único de estado. Os *locks* por conta dizem *quais*
+operações podem correr em paralelo, mas aplicar uma operação mexe em estruturas
+partilhadas (`indice_commit`, extrato, tabela de `op_id`). Duas *threads* com
+contas diferentes corromperiam essas estruturas. O `lock` de estado serializa a
+aplicação — e também a leitura, porque uma consulta feita entre o débito e o
+crédito de uma transferência veria dinheiro desaparecido, violando RF-07.
+
+### Ordem obrigatória de uma escrita
+
+Nenhum destes passos pode trocar de lugar:
+
+1. `op_id` já aplicado? Devolver o resultado guardado e terminar.
+2. Adquirir os *locks* das contas envolvidas, por ordem crescente de id.
+3. **Validar**: as contas existem, o valor é positivo, o saldo chega.
+4. Gravar no WAL + `fsync`.
+5. Replicar e esperar pela maioria (secção 7).
+6. Aplicar ao estado, guardar o resultado do `op_id`, libertar os *locks*.
+7. Responder ao cliente.
+
+- A validação vem **antes** do log: não se replica uma operação que vai ser rejeitada.
+- O `fsync` vem **antes** do ACK, no primário e na réplica.
+- A resposta ao cliente vem **depois** da maioria. É isto, e só isto, que faz uma
+  operação confirmada sobreviver à queda imediata do primário.
+- Os *locks* só se libertam **depois** de aplicar (RF-08).
+
+---
+
+## 6. API HTTP
+
+Transporte HTTP com corpos JSON, servido por `http.server.ThreadingHTTPServer`.
+Escolheu-se HTTP em vez de sockets crus por uma razão operacional: quando o cluster
+não converge nos laptops, um `curl` diz em cinco segundos se o problema é a
+*firewall* ou o protocolo.
+
+Erros têm sempre a mesma forma:
+
+```json
+{"erro": "saldo_insuficiente", "mensagem": "alice tem R$ 120,00 e a transferência pede R$ 500,00"}
+```
+
+| Código | HTTP | Quando |
+|---|---|---|
+| `valor_invalido` | 400 | Valor ausente, não positivo ou mal formado |
+| `conta_inexistente` | 404 | A conta não existe |
+| `conta_duplicada` | 409 | Já existe conta com esse id |
+| `nao_sou_primario` | 409 | Escrita enviada a uma réplica. Traz `primario_provavel` |
+| `saldo_insuficiente` | 422 | A operação deixaria o saldo negativo |
+| `sem_quorum` | 503 | A maioria não confirmou dentro do tempo |
+| `somente_leitura` | 503 | O nó não vê a maioria e recusa escritas |
+
+### 6.1 Rotas de cliente
+
+| Rota | Método | Requisito |
+|---|---|---|
+| `/contas` | POST | RF-01 criar conta |
+| `/contas/{id}` | GET | RF-02 saldo |
+| `/contas/{id}/deposito` | POST | RF-03 |
+| `/contas/{id}/saque` | POST | RF-03 |
+| `/transferencias` | POST | RF-04, RF-05 |
+| `/contas/{id}/extrato` | GET | F-05 |
+| `/auditoria` | GET | RF-14 |
+
+Toda escrita exige `op_id` no corpo. Uma réplica recusa escritas com:
+
+```json
+{"erro": "nao_sou_primario", "primario_provavel": "192.168.0.12:8001"}
+```
+
+As leituras são servidas pelo primário. Uma réplica só responde a leituras com
+`?desatualizado=true` explícito, e a resposta traz `desatualizado: true` e o
+`indice_aplicado`, para o cliente saber quão atrasado o dado pode estar.
+
+### 6.2 Rotas internas (entre servidores)
+
+| Rota | Método | Papel |
+|---|---|---|
+| `/interno/replicar` | POST | Replicação e *heartbeat* |
+| `/interno/votar` | POST | Pedido de voto |
+| `/interno/log?desde=N` | GET | Réplica atrasada pede o log a partir de N |
+| `/interno/estado` | GET | Papel, `epoch`, último índice, `indice_commit` |
+
+Não há autenticação nem cifragem: está fora do âmbito por decisão da proposta, e é
+coerente com o modelo de falhas — um nó pode morrer ou atrasar-se, mas não mente.
+
+### 6.3 Rotas de administração
+
+| Rota | Método | Requisito |
+|---|---|---|
+| `/admin/metricas` | GET | RF-15 |
+| `/admin/falha` | POST | RF-16, F-10 |
+| `/painel` | GET | F-11, painel web |
+
+---
+
+## 7. Replicação
+
+Um único RPC serve de replicação e de *heartbeat*. Reaproveitá-lo garante que o
+*heartbeat* carrega sempre o `epoch` e o `commit_lider` corretos, sem um segundo
+caminho de código que possa divergir do primeiro.
+
+`POST /interno/replicar`
+
+```json
+{"epoch": 7, "id_lider": "A", "indice_anterior": 41, "epoch_anterior": 7,
+ "entradas": [ ... ], "commit_lider": 41}
+```
+
+Com `entradas` vazio, é um *heartbeat*.
+
+**A réplica aceita se, e só se:**
+
+1. `epoch` do pedido ≥ o seu `epoch`; e
+2. tem no seu log uma entrada em `indice_anterior` com `epoch_anterior`.
+
+Se aceita: grava as entradas, faz `fsync`, avança `indice_commit` até
+`min(commit_lider, seu último índice)` e responde:
+
+```json
+{"epoch": 7, "ok": true, "indice_correspondente": 42}
+```
+
+Se a condição 1 falha, responde `ok: false` com o seu `epoch` — e o primário, ao
+ver um `epoch` maior, despromove-se imediatamente a réplica.
+
+Se a condição 2 falha, o seu log divergiu ou tem um buraco. Responde
+`{"ok": false, "meu_ultimo_indice": N}` e o primário reenvia o log a partir de
+`N + 1`.
+
+> **Simplificação face ao Raft.** O Raft resolve a divergência recuando um índice de
+> cada vez até encontrar o ponto comum. Aqui a réplica diz logo onde está e o
+> primário reenvia daí; se as entradas nesse intervalo divergirem, a réplica trunca
+> as suas e aceita as do primário. Nunca se trunca abaixo do `indice_commit`, porque
+> essas entradas já foram confirmadas a um cliente. Um nó muito atrasado usa
+> `GET /interno/log?desde=N` para se pôr em dia de uma vez.
+
+**Confirmação por maioria.** O primário conta-se a si próprio. Com 3 nós, a maioria
+é 2: o primário mais uma réplica. Com 2 nós, a maioria é 2: ambos.
+
+Se a maioria não responder dentro de `timeout_replicacao_ms`, o cliente recebe
+`503 sem_quorum`. A entrada fica gravada mas **não confirmada** — pode vir a
+existir ou não. O cliente repete com o mesmo `op_id`; o próximo primário ou a
+confirma (se chegou à maioria) ou a trunca, e a deduplicação garante que o dinheiro
+se move exatamente uma vez.
+
+Se a maioria estiver inacessível há mais do que um *timeout* de eleição, o primário
+passa a **somente leitura** de imediato, em vez de acumular operações que nunca
+serão confirmadas.
+
+---
+
+## 8. Eleição e failover
+
+```
+  [arranque] --> RÉPLICA
+  RÉPLICA   --> CANDIDATO : sem heartbeat durante o timeout sorteado
+  CANDIDATO --> PRIMÁRIO  : maioria dos votos
+  CANDIDATO --> RÉPLICA   : perdeu, ou viu um epoch maior
+  CANDIDATO --> CANDIDATO : empate — novo epoch, novo timeout
+  PRIMÁRIO  --> RÉPLICA   : recebeu um epoch maior
+```
+
+### 8.1 Deteção
+
+O primário envia um *heartbeat* a cada `heartbeat_ms` (150 ms). Uma réplica que
+passe `timeout_eleicao_ms` sem receber nada incrementa o `epoch` e candidata-se.
+
+O *timeout* de eleição é **sorteado** em `[800, 1500] ms` a cada ronda. Sem
+aleatoriedade, as réplicas tornam-se candidatas ao mesmo tempo, dividem os votos e
+a eleição não converge.
+
+**A semente do sorteio é derivada por nó** — `semente_global + crc32(id_do_no)` — e
+nunca a semente global pura. Isto não é detalhe: com a mesma semente nos três nós,
+os três sorteiam o *mesmo* valor, candidatam-se juntos e dividem os votos
+indefinidamente. Derivar de forma estável mantém RNF-06, porque a mesma semente
+global continua a reproduzir a mesma execução.
+
+Também é preciso `heartbeat_ms` muito menor que o mínimo do *timeout*. Se forem
+próximos, uma lentidão momentânea derruba um primário saudável e o cluster passa a
+trocar de líder sem parar. A configuração valida esta relação ao carregar.
+
+### 8.2 Pedido de voto
+
+`POST /interno/votar`
+
+```json
+{"epoch": 8, "id_candidato": "B", "ultimo_indice": 42, "ultimo_epoch": 7}
+```
+
+O eleitor concede o voto se **as três** condições valerem:
+
+1. o `epoch` do candidato é maior ou igual ao seu;
+2. ainda não votou neste `epoch`, ou já votou neste mesmo candidato;
+3. o log do candidato está **pelo menos tão atualizado** quanto o seu — compara-se
+   `ultimo_epoch` e, em empate, `ultimo_indice`.
+
+A condição 3 é o que impede que uma operação confirmada se perca:
+
+> Toda operação confirmada está gravada na maioria dos nós.
+> Todo vencedor de eleição precisa do voto da maioria.
+> Duas maiorias têm sempre pelo menos um nó em comum.
+> Esse nó só votaria em quem tem o log ao menos tão atualizado quanto o dele.
+> Logo, **o novo primário tem todas as operações confirmadas**.
+
+### 8.3 Fencing por `epoch`
+
+Cada mandato de primário tem um número, o `epoch`, que só cresce. Como cada nó vota
+uma única vez por `epoch`, e duas maiorias intersectam-se sempre, **não existem dois
+primários no mesmo `epoch`**.
+
+Toda mensagem carrega o `epoch`. Um primário antigo que volta a si — depois de uma
+pausa de rede, por exemplo — tem `epoch` menor, é rejeitado por todos e despromove-se
+a réplica sem ter confirmado nada.
+
+### 8.4 Ao assumir
+
+O novo primário envia um *heartbeat* imediato, para calar candidatos concorrentes, e
+grava uma entrada **`noop` no seu próprio `epoch`** antes de aceitar escritas.
+
+A razão é subtil e vale registá-la para a defesa: uma entrada herdada do primário
+anterior, mesmo presente na maioria dos nós, **não pode ser confirmada por contagem
+de réplicas**. Existe um cenário conhecido em que ela é depois sobrescrita por outro
+líder, e uma operação já dada como confirmada desapareceria. Confirmando primeiro a
+`noop` do `epoch` atual, tudo o que vem antes fica confirmado por arrasto, em
+segurança.
+
+---
+
+## 9. Configuração do cluster
+
+`config/cluster.json`, igual em todos os nós:
+
+```json
+{
+  "nos": [
+    {"id": "A", "endereco": "192.168.0.11", "porta": 8001},
+    {"id": "B", "endereco": "192.168.0.12", "porta": 8001},
+    {"id": "C", "endereco": "192.168.0.12", "porta": 8002}
+  ],
+  "heartbeat_ms": 150,
+  "timeout_eleicao_ms": [800, 1500],
+  "timeout_replicacao_ms": 500,
+  "semente": 42
+}
+```
+
+O ficheiro está no `.gitignore`; versiona-se `config/cluster.exemplo.json`.
+
+### Ensaio em 2 ou 3 laptops
+
+**Usar sempre 3 nós, mesmo com 2 laptops** (o PC1 corre A, o PC2 corre B e C). Com
+apenas 2 nós, a maioria é 2 e a queda de qualquer um deixa o outro em somente
+leitura — não há failover com escrita para demonstrar.
+
+- Os nós ligam-se a `0.0.0.0`, não a `127.0.0.1`, senão não são alcançáveis de fora.
+- As portas têm de estar abertas na *firewall* de cada laptop.
+- **Antes de subir o cluster**, testar cada endereço com `curl`. Com uma porta
+  bloqueada, os sintomas — eleições sem fim, `epoch` a subir sozinho — parecem um
+  erro de protocolo e levam a procurar no sítio errado.
+
+---
+
+## 10. Observabilidade e injeção de falhas
+
+**Log estruturado** (RNF-07): uma linha JSON por evento, com `instante`, `no`,
+`epoch`, `evento` e campos próprios do evento. Vocabulário fechado de eventos, em
+[`CODESTYLE.md`](CODESTYLE.md).
+
+**Métricas** (RF-15), em `/admin/metricas`: operações por tipo, latências (p50, p99),
+`epoch` atual, número de eleições, último índice, `indice_commit`, réplicas vivas.
+
+**Painel** (F-11), em `/painel`: página HTML servida pelo próprio nó, só leitura,
+mostra os nós ativos, quem é o primário, o `epoch` e as métricas. Sem operações
+bancárias. O desenho está em [`CODESTYLE.md`](CODESTYLE.md).
+
+**Injeção de falhas** (RF-16, F-10), em `POST /admin/falha`:
+
+```json
+{"tipo": "atraso", "ms": 300}
+{"tipo": "isolar", "de": ["B"]}
+{"tipo": "derrubar"}
+{"tipo": "limpar"}
+```
+
+`isolar` faz o nó descartar mensagens dos nós indicados, simulando uma partição de
+rede sem mexer na *firewall* — é o que permite reproduzir o cenário de *split-brain*
+num teste automático.
+
+---
+
+## 11. Desvios face à proposta
+
+Registados aqui com a justificação, porque são pontos de discussão na defesa.
+
+### 11.1 Failover por voto, não por posição na lista
+
+A proposta descreve failover simples: "a próxima da lista assume". Ao detalhar o
+desenho, três exigências da própria proposta revelaram-se incompatíveis:
+
+| Exigência | Conflito |
+|---|---|
+| RF-10 / RNF-02: só confirmar depois de replicar | Exige pelo menos 2 nós vivos |
+| RF-11: continuar a atender com um servidor fora do ar | Com 1 nó vivo não há a quem replicar |
+| RF-09: promoção por posição na lista, sem votação | Um primário apenas **lento** continua a julgar-se primário |
+
+O terceiro é o grave. Se o primário A está só lento — GC, rede congestionada, disco
+travado — e B assume por *timeout*, passam a existir dois primários. Um cliente
+deposita em A, outro em B, os dois logs divergem, e quando A volta ou se perde uma
+operação ou se somam saldos incompatíveis. É exatamente a falha que o projeto
+existe para impedir.
+
+**Adotado:** promoção por maioria de votos com *fencing* por `epoch`. O resultado é
+um Raft simplificado: mantém-se o que dá a garantia (`epoch`, voto por maioria,
+restrição de voto pelo log) e deixa-se de fora o que aqui não faz falta (mudança
+dinâmica de membros, compactação distribuída, leituras por *lease*).
+
+**Efeito sobre RF-11:** com 3 servidores tolera-se 1 queda com escritas normais. Com
+2 caídos, o nó vivo passa a somente leitura — responde a saldo, extrato e auditoria,
+recusa escritas com 503. É o preço honesto de RNF-02. RF-11 cumpre-se no sentido de
+continuar a responder; a parte de escrita fica documentada como impossível sob essa
+combinação de requisitos.
+
+### 11.2 Painel web
+
+A proposta exclui "interface gráfica web" do âmbito. Acrescenta-se mesmo assim um
+painel, com dois limites que o mantêm coerente com essa restrição: é **só de
+leitura** e é de **monitorização**, não de operação bancária. Existe para cumprir
+F-11 de forma demonstrável; todas as operações continuam a passar pelo CLI (F-12).
+
+### 11.3 RNF-04 (500 transações por segundo)
+
+Tratado como **meta de medição**, não como requisito bloqueante. Uma implementação
+anterior deste mesmo desenho saturou em cerca de 270 TPS nesta classe de máquina, e
+as hipóteses de estrangulamento testadas (`fsync`, contenção de *locks*,
+serialização, CPU) foram todas descartadas — o tempo estava em espera, não em
+trabalho.
+
+O projeto final regista o número medido e a análise. Relatar a medição real vale
+mais do que ajustar o requisito para que ele pareça cumprido.
+
+---
+
+## 12. Fora de âmbito
+
+| O quê | Porquê |
+|---|---|
+| Autenticação e cifragem | Excluído pela proposta |
+| Snapshots do estado | *Replay* do WAL basta na escala da demonstração (secção 4.2) |
+| Mudança de membros em execução (RF-18) | Prioridade Baixa na proposta. Fica documentado como extensão |
+| Contas repartidas entre servidores | Todos os nós têm todas as contas — é o que dispensa o *commit* em duas fases |
+| Replicação entre regiões | Excluído pela proposta |
+| Dependências externas | Ver [`CONVENCOES.md`](CONVENCOES.md) |
+
+---
+
+## 13. Rastreabilidade
+
+### Funcionalidades
+
+| ID | Funcionalidade | Etapa |
+|---|---|---|
+| F-01 | Criar conta | Protótipo 1 |
+| F-02 | Consultar saldo | Protótipo 1 |
+| F-03 | Depositar e sacar | Protótipo 1 |
+| F-04 | Transferir entre contas | Protótipo 1 |
+| F-05 | Extrato de operações | Protótipo 1 |
+| F-06 | Auditoria da soma dos saldos | Protótipo 1 |
+| F-07 | Operações concorrentes | Protótipo 1 |
+| F-08 | Funcionar com servidores fora do ar | Protótipo 2 |
+| F-09 | Recuperar estado após reinício | Protótipo 2 |
+| F-10 | Injeção de falhas | Projeto final |
+| F-11 | Visualizar o estado do sistema | Projeto final |
+| F-12 | Cliente de linha de comando | Protótipo 1 |
+
+### Requisitos funcionais
+
+| ID | Etapa | Onde se cumpre |
+|---|---|---|
+| RF-01 | Protótipo 1 | `dominio/contas`, `POST /contas` |
+| RF-02 | Protótipo 1 | `GET /contas/{id}` |
+| RF-03 | Protótipo 1 | `POST /contas/{id}/deposito`, `/saque` |
+| RF-04 | Protótipo 1 | `POST /transferencias` |
+| RF-05 | Protótipo 1 | Transferência = uma única entrada de log (3.3) |
+| RF-06 | Protótipo 1 | Validação antes do log (secção 5) |
+| RF-07 | Protótipo 1 | `lock` de estado por nó (secção 5) |
+| RF-08 | Protótipo 1 | *Locks* por conta em ordem total (secção 5) |
+| RF-09 | Protótipo 2 | Eleição por maioria (secção 8) |
+| RF-10 | Protótipo 2 | Confirmação por maioria (secção 7) |
+| RF-11 | Protótipo 2 | Failover; com 2 caídos, somente leitura (11.1) |
+| RF-12 | Protótipo 2 | Recuperação por *replay* + reintegração (4.2, 7) |
+| RF-13 | Protótipo 2 | Deduplicação por `op_id` (3.3) |
+| RF-14 | Protótipo 1 | `GET /auditoria` |
+| RF-15 | Projeto final | `GET /admin/metricas` |
+| RF-16 | Projeto final | `POST /admin/falha` |
+| RF-17 | Protótipo 1 | `banco.cli` |
+| RF-18 | — | Fora de âmbito, documentado (secção 12) |
+
+### Requisitos não funcionais
+
+| ID | Critério | Etapa | Como se verifica |
+|---|---|---|---|
+| RNF-01 | A soma nunca muda | Protótipo 1 e 2 | Teste de invariante sob milhares de operações sorteadas |
+| RNF-02 | Operação confirmada sobrevive | Protótipo 2 | `SIGKILL` no primário a meio de transferências |
+| RNF-03 | Novo primário em menos de 2 s | Protótipo 2 | Medição do tempo de failover |
+| RNF-04 | 500 TPS local | Projeto final | *Benchmark*; meta de medição (11.3) |
+| RNF-05 | p99 abaixo de 200 ms | Projeto final | *Benchmark* com concorrência crescente |
+| RNF-06 | Mesma semente, mesmo resultado | Protótipo 2 | Semente derivada por nó (8.1) |
+| RNF-07 | Log estruturado e métricas | Projeto final | Secção 10 |
+| RNF-08 | Módulos com código, testes e documentação | As três | Estrutura em `CODESTYLE.md` |
+| RNF-09 | Um comando em Linux e macOS | Protótipo 1 | Só biblioteca padrão, sem instalação |
+| RNF-10 | Cada componente documenta os seus modos de falha | As três | README de cada etapa |

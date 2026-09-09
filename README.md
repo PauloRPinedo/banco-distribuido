@@ -1,79 +1,80 @@
-# Banco Distribuido Tolerante a Falhas
+# Banco Distribuído
 
-Um banco com 2 ou 3 servidores que mantem **uma unica copia logica** das contas e que,
-mesmo com um servidor caindo no meio de uma transferencia, **nunca cria nem destroi dinheiro**.
+**Um banco que não perde dinheiro.** De 2 a 3 servidores mantêm uma única cópia
+lógica das contas e, mesmo com um servidor a cair no meio de uma transferência, o
+dinheiro nunca é criado nem destruído.
 
-Projeto da disciplina de Sistemas Distribuidos / Computacao Distribuida
-Universidade de Sao Paulo -- ICMC, campus Sao Carlos
+Trabalho da disciplina de Computação Distribuída
+Universidade de São Paulo — Instituto de Ciências Matemáticas e de Computação
+Campus São Carlos, São Paulo, Brasil
 
-| Numero USP | Nome | Componentes |
-|---|---|---|
-| 18404636 | Jefferson Daniel Flores Montenegro | `domain/`, `storage/` |
-| 18514632 | Cristhian Jesus Maylle Briceno | `replication/`, `election/`, `concurrency/` |
-| 17819748 | Paulo Sebastian Rojo Pinedo | `api/`, `cli/`, `observability/`, `faults.py` |
+| Número USP | Nome |
+|---|---|
+| 18404636 | Jefferson Daniel Flores Montenegro |
+| 18514632 | Cristhian Jesus Maylle Briceño |
+| 17819748 | Paulo Sebastian Rojo Pinedo |
 
-## Documentacao
+---
 
-- **[`docs/arquitetura.md`](docs/arquitetura.md)** -- documento principal: desenho do sistema,
-  protocolo de replicacao, eleicao de primario, decisoes, medicoes e rastreabilidade dos requisitos.
-- **[`docs/uml.md`](docs/uml.md)** -- diagramas UML de classes, sequencia e estados (Mermaid,
-  renderiza direto no GitHub). Versoes PlantUML em [`docs/uml/`](docs/uml/).
-- **[`docs/teste_em_duas_maquinas.md`](docs/teste_em_duas_maquinas.md)** -- passo a passo para
-  rodar o cluster em duas computadoras na rede local e demonstrar o failover.
-- [`docs/proposta_banco_distribuido_simples.md`](docs/proposta_banco_distribuido_simples.md)
-  -- proposta original entregue.
+## Em duas frases
 
-## Em uma linha
+Todos os servidores guardam todas as contas, por isso uma transferência é sempre
+**local ao primário** — débito e crédito na mesma máquina, na mesma entrada de log.
+Não há *commit* em duas fases, e é essa simplificação que faz a atomicidade sair de
+graça.
 
-Replicacao por log com confirmacao por **maioria** e **fencing por epoch**: o primario so
-responde ao cliente depois que a operacao esta gravada de forma duravel na maioria dos nos, e
-um primario antigo que volta a si e rejeitado por ter epoch menor. Uma transferencia e **uma
-unica entrada de log**, entao a atomicidade nao precisa de commit em duas fases.
+O primário só responde ao cliente depois de a operação estar gravada em disco na
+**maioria** dos nós, e um primário antigo que regressa é rejeitado por ter um
+`epoch` menor.
+
+---
+
+## As três etapas
+
+| Etapa | Pasta | Objetivo | Estado |
+|---|---|---|---|
+| Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto num só nó | não iniciada |
+| Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | não iniciada |
+| Projeto final | [`projeto-final/`](projeto-final/) | Prova, mede e mostra | não iniciada |
+
+Cada pasta é autocontida e tem o seu próprio README, com o que foi entregue e como
+o trabalho foi repartido entre os três.
+
+---
+
+## Documentação
+
+| Documento | Para quê |
+|---|---|
+| [`docs/proposta.md`](docs/proposta.md) | A proposta entregue. Fonte dos requisitos F-xx, RF-xx e RNF-xx |
+| [`docs/SPECS.md`](docs/SPECS.md) | Como o sistema funciona: protocolos, formatos, API, rastreabilidade |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | O que se faz em cada etapa e subfase, e quem faz |
+| [`docs/CODESTYLE.md`](docs/CODESTYLE.md) | Estilo do código, do CLI e do painel |
+| [`docs/CONVENCOES.md`](docs/CONVENCOES.md) | Convenções de trabalho no repositório |
+
+---
 
 ## Como executar
 
+Não é preciso instalar nada. Só Python 3.10 ou mais recente, da biblioteca padrão.
+
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+git clone https://github.com/PauloRPinedo/banco-distribuido.git
+cd banco-distribuido/prototipo-1
 
-# sobe 3 servidores locais
-./scripts/run_cluster.sh --clean
+python3 -m banco.servidor --id A --porta 8001
 
-# quem e o primario?
-python cli/banco_cli.py status
+python3 -m banco.cli criar-conta alice --saldo 100.00
+python3 -m banco.cli criar-conta bob --saldo 0.00
+python3 -m banco.cli transferir alice bob 25.00
+python3 -m banco.cli auditoria
 
-python cli/banco_cli.py criar-conta alice --saldo 100.00
-python cli/banco_cli.py criar-conta bob --saldo 0.00
-python cli/banco_cli.py transferir alice bob 25.00
-python cli/banco_cli.py auditoria
-
-# derruba o primario e confere que outro assume
-./scripts/kill_primary.sh
-
-python cli/banco_cli.py transferir alice bob 10.00   # continua funcionando
-python cli/banco_cli.py auditoria                    # total inalterado
-
-pytest -q                    # 59 passam, 3 pendentes
-./scripts/stop_cluster.sh    # para o cluster
+python3 -m pytest -q
 ```
 
-Para rodar em **duas maquinas**, siga [`docs/teste_em_duas_maquinas.md`](docs/teste_em_duas_maquinas.md).
+A ausência de dependências é uma decisão, não um acaso: o sistema é demonstrado em
+2 ou 3 laptops diferentes numa rede local, e pôr o projeto a correr em cada máquina
+tem de ser `git clone` e executar.
 
-## Estado da implementacao
-
-| Fase | Escopo | Situacao |
-|---|---|---|
-| 1 | Arquitetura, estrutura de modulos, interfaces | **concluida** |
-| 2 | No unico: dominio, WAL, API de cliente, CLI | **concluida** |
-| 3 | Replicacao com quorum, idempotencia | **concluida** |
-| 4 | Heartbeat, eleicao, failover, reintegracao | **concluida** |
-| 5 | Injecao de falhas, metricas, benchmark, suite completa | **parcial** |
-
-O prototipo e funcional: replica com quorum, elege primario, faz failover automatico e
-reintegra um no reiniciado. `pytest -q` reporta **59 testes passando e 3 pendentes** (os
-de injecao de falhas e split-brain, que ficam para a proxima rodada).
-
-Uma ressalva honesta sobre desempenho: **RNF-04 (500 TPS) nao e cumprido** -- a vazao
-satura em ~270 TPS nesta maquina. RNF-05 (p99 < 200 ms) e cumprido ate 16 clientes
-simultaneos. A secao 9 de [`docs/arquitetura.md`](docs/arquitetura.md) mostra as medicoes
-e as quatro hipoteses de gargalo que foram testadas e descartadas.
+Para o cluster em várias máquinas, ver o README do
+[`prototipo-2/`](prototipo-2/).
