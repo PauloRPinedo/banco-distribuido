@@ -22,7 +22,8 @@ Regras que valem para as três:
 
 # Etapa 1 — Protótipo 1
 
-> Um banco correto num só nó.
+> Um banco correto num só nó. — **concluída**, 103 testes a passar.
+> Ver [`prototipo-1/RELATORIO.md`](../prototipo-1/RELATORIO.md).
 
 Ainda não há rede entre servidores, nem replicação, nem eleição. O que há é a base
 sem a qual nada disso faz sentido: o dinheiro tem de estar certo **antes** de ser
@@ -34,92 +35,96 @@ procurar-se-á no sítio errado durante dias.
 
 ### 1.1 Fundação do repositório — *Paulo*
 
-- [ ] Estrutura de pastas de `prototipo-1/` conforme o `CODESTYLE.md`
-- [ ] `banco/` com os pacotes `dominio`, `persistencia`, `cluster`, `interface`
-- [ ] Configurar `pytest` sem instalação (`pytest.ini` com `pythonpath`)
-- [ ] Confirmar que corre com Python 3.10+ sem `pip install` de nada
-- **Pronto quando:** `python3 -m pytest -q` corre numa máquina limpa, sem venv
+- [x] Estrutura de pastas de `prototipo-1/` conforme o `CODESTYLE.md`
+- [x] `banco/` com os pacotes `dominio`, `persistencia`, `cluster`, `interface`
+- [x] Testes com o `unittest` da biblioteca padrão, sem ficheiro de
+      configuração: `python3 -m unittest` já põe o diretório atual no
+      `sys.path`
+- [x] Confirmar que corre com Python 3.10+ sem `pip install` de nada
+- **Pronto quando:** `python3 -m unittest discover -s tests` corre numa máquina limpa, sem venv
 
 ### 1.2 Domínio: dinheiro e contas — *Jefferson*
 
-- [ ] Conversão de texto para centavos com `decimal.Decimal`, **nunca** `float`
-- [ ] Formatação de centavos para `R$ 1.234,56`
-- [ ] `Conta` com `id`, `saldo_centavos`, `criada_em`; validação do formato do id
-- [ ] Hierarquia de erros com raiz `ErroDoBanco`, cada um com `codigo` e
+- [x] Conversão de texto para centavos com `decimal.Decimal`, **nunca** `float`
+- [x] Formatação de centavos para `R$ 1.234,56`
+- [x] `Conta` com `id`, `saldo_centavos`, `criada_em`; validação do formato do id
+- [x] Hierarquia de erros com raiz `ErroDoBanco`, cada um com `codigo` e
       `estado_http`
-- [ ] Testes: conversão nos dois sentidos, ida e volta, valores negativos e mal
+- [x] Testes: conversão nos dois sentidos, ida e volta, valores negativos e mal
       formados, id inválido
-- **Pronto quando:** nenhum `float` aparece em `grep -rn float banco/dominio/`
+- **Pronto quando:** nenhum `float` toca em dinheiro. O `grep` tem de
+      excluir `instante` e `criada_em`, que são instantes de tempo e são
+      `float` por especificação (SPECS 3.2)
 
 ### 1.3 Domínio: operações e invariante — *Jefferson*
 
-- [ ] `criar_conta`, `deposito`, `saque`, `transferencia` como funções puras sobre
+- [x] `criar_conta`, `deposito`, `saque`, `transferencia` como funções puras sobre
       o estado
-- [ ] Recusa de saque e transferência que deixem saldo negativo (RF-06)
-- [ ] Cada operação devolve as contas que toca, **já ordenadas** por id — a ordem
+- [x] Recusa de saque e transferência que deixem saldo negativo (RF-06)
+- [x] Cada operação devolve as contas que toca, **já ordenadas** por id — a ordem
       total dos *locks* nasce aqui, para ninguém ter de se lembrar dela no ponto
       de uso
-- [ ] Transferência aplicada por **uma única função**, sem estado intermédio (RF-05)
-- [ ] Extrato por conta (F-05)
-- [ ] Auditoria: soma de todos os saldos (RF-14, F-06)
-- [ ] Teste da invariante: 3000 operações sorteadas com semente fixa, a soma no
+- [x] Transferência aplicada por **uma única função**, sem estado intermédio (RF-05)
+- [x] Extrato por conta (F-05)
+- [x] Auditoria: soma de todos os saldos (RF-14, F-06)
+- [x] Teste da invariante: 3000 operações sorteadas com semente fixa, a soma no
       fim é igual à do início
 - **Pronto quando:** o teste da invariante passa e o domínio não importa `socket`,
   `http` nem `os`
 
 ### 1.4 Persistência: WAL e recuperação — *Jefferson*
 
-- [ ] Escrita de `EntradaDeLog` em JSONL com `write` + `flush` + `os.fsync`
-- [ ] Leitura do WAL no arranque e *replay* de todas as entradas
-- [ ] Linha final truncada: descartar e truncar o ficheiro nesse ponto
-- [ ] `estado.json` com `epoch` e `votou_em`, com `fsync` (já preparado para a
+- [x] Escrita de `EntradaDeLog` em JSONL com `write` + `flush` + `os.fsync`
+- [x] Leitura do WAL no arranque e *replay* de todas as entradas
+- [x] Linha final truncada: descartar e truncar o ficheiro nesse ponto
+- [x] `estado.json` com `epoch` e `votou_em`, com `fsync` (já preparado para a
       etapa 2, mesmo sem uso agora)
-- [ ] Deduplicação por `op_id`: guardar o resultado e devolvê-lo na repetição
-- [ ] Testes: *replay* reconstrói o estado exato, linha truncada não quebra o
+- [x] Deduplicação por `op_id`: guardar o resultado e devolvê-lo na repetição
+- [x] Testes: *replay* reconstrói o estado exato, linha truncada não quebra o
       arranque, `op_id` repetido não move dinheiro duas vezes
 - **Pronto quando:** matar o processo e reiniciar devolve exatamente o mesmo saldo
 
 ### 1.5 Concorrência — *Cristhian*
 
-- [ ] *Locks* por conta, adquiridos por ordem crescente de id
-- [ ] `lock` único de estado por nó, a serializar aplicação **e** leitura (RF-07)
-- [ ] Ordem obrigatória de uma escrita conforme a secção 5 do `SPECS.md`
-- [ ] Teste de *deadlock*: `alice→bob` e `bob→alice` em paralelo, com limite de
+- [x] *Locks* por conta, adquiridos por ordem crescente de id
+- [x] `lock` único de estado por nó, a serializar aplicação **e** leitura (RF-07)
+- [x] Ordem obrigatória de uma escrita conforme a secção 5 do `SPECS.md`
+- [x] Teste de *deadlock*: `alice→bob` e `bob→alice` em paralelo, com limite de
       tempo, não bloqueiam
-- [ ] Teste de corrida: N *threads* a sacar da mesma conta, o saldo nunca fica
+- [x] Teste de corrida: N *threads* a sacar da mesma conta, o saldo nunca fica
       negativo e nenhuma operação se perde
-- [ ] Teste de leitura consistente: consultas durante transferências nunca veem
+- [x] Teste de leitura consistente: consultas durante transferências nunca veem
       dinheiro a menos (RF-07)
 - **Pronto quando:** os testes de concorrência passam 20 vezes seguidas sem falhar
   uma
 
 ### 1.6 Servidor HTTP e rotas de cliente — *Paulo*
 
-- [ ] `ThreadingHTTPServer` da biblioteca padrão, a ligar em `0.0.0.0`
-- [ ] Encaminhamento de rotas e leitura de corpos JSON
-- [ ] Rotas de cliente da secção 6.1 do `SPECS.md`
-- [ ] Tradução uniforme de `ErroDoBanco` para código HTTP e corpo JSON, num só
+- [x] `ThreadingHTTPServer` da biblioteca padrão, a ligar em `0.0.0.0`
+- [x] Encaminhamento de rotas e leitura de corpos JSON
+- [x] Rotas de cliente da secção 6.1 do `SPECS.md`
+- [x] Tradução uniforme de `ErroDoBanco` para código HTTP e corpo JSON, num só
       sítio
-- [ ] `op_id` obrigatório em toda escrita
-- [ ] Testes de integração: cada rota no caminho feliz e nos erros
+- [x] `op_id` obrigatório em toda escrita
+- [x] Testes de integração: cada rota no caminho feliz e nos erros
 
 ### 1.7 Cliente de linha de comando — *Paulo*
 
-- [ ] `argparse` com os comandos `criar-conta`, `saldo`, `depositar`, `sacar`,
+- [x] `argparse` com os comandos `criar-conta`, `saldo`, `depositar`, `sacar`,
       `transferir`, `extrato`, `auditoria`, `estado` (F-12, RF-17)
-- [ ] Geração do `op_id` **no cliente**, para a retentativa ser segura
-- [ ] Formatação de tabelas e de dinheiro conforme a secção 9 do `CODESTYLE.md`
-- [ ] Cor ANSI só quando `sys.stdout.isatty()`
-- [ ] Erros em três linhas, a terceira com o passo seguinte
-- [ ] Códigos de saída 0, 1, 2 e 3 distintos
+- [x] Geração do `op_id` **no cliente**, para a retentativa ser segura
+- [x] Formatação de tabelas e de dinheiro conforme a secção 9 do `CODESTYLE.md`
+- [x] Cor ANSI só quando `sys.stdout.isatty()`
+- [x] Erros em três linhas, a terceira com o passo seguinte
+- [x] Códigos de saída 0, 1, 2 e 3 distintos
 
 ### 1.8 Fecho da etapa — *todos*
 
-- [ ] `prototipo-1/README.md` com objetivo, execução, requisitos cobertos e
+- [x] `prototipo-1/README.md` com objetivo, execução, requisitos cobertos e
       divisão de trabalho
-- [ ] Modos de falha documentados: o que acontece com o disco cheio, com o
+- [x] Modos de falha documentados: o que acontece com o disco cheio, com o
       processo morto a meio de uma escrita (RNF-10)
-- [ ] Todos os testes passam; o número real fica no README
+- [x] Todos os testes passam; o número real fica no README
 - **Etapa entregue quando:** um avaliador clona o repositório, corre um comando e
   faz uma transferência sem instalar nada
 

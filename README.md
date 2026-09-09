@@ -33,7 +33,7 @@ O primário só responde ao cliente depois de a operação estar gravada em disc
 
 | Etapa | Pasta | Objetivo | Estado |
 |---|---|---|---|
-| Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto num só nó | não iniciada |
+| Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto num só nó | **concluída** |
 | Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | não iniciada |
 | Projeto final | [`projeto-final/`](projeto-final/) | Prova, mede e mostra | não iniciada |
 
@@ -69,7 +69,7 @@ python3 -m banco.cli criar-conta bob --saldo 0.00
 python3 -m banco.cli transferir alice bob 25.00
 python3 -m banco.cli auditoria
 
-python3 -m pytest -q
+python3 -m unittest discover -s tests
 ```
 
 A ausência de dependências é uma decisão, não um acaso: o sistema é demonstrado em

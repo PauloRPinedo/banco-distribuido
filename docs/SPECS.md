@@ -182,6 +182,13 @@ a lado com `tail` responde à pergunta em segundos.
 4. Arrancar **sempre como réplica**, mesmo que este nó fosse o primário antes de
    cair. Quem manda decide-se por eleição, nunca pelo que o nó se lembra de si.
 
+> **No Protótipo 1 não há papel nenhum.** O ponto 4 pressupõe uma eleição que
+> ainda não existe, e uma réplica sozinha recusaria todas as escritas. Com um nó
+> só, ele aceita escritas sempre; `epoch` fica em 1 e `estado.json` é gravado mas
+> não decide nada. O ficheiro existe desde já para o formato do WAL não mudar
+> entre etapas — converter ficheiros a meio do projeto seria trabalho a dobrar e
+> uma segunda versão para explicar na defesa.
+
 **Não há snapshots.** O estado reconstrói-se sempre por *replay* completo do WAL.
 Numa demonstração o log tem centenas ou milhares de entradas e o *replay* demora
 milissegundos; um mecanismo de snapshot custaria umas duzentas linhas e um conjunto
@@ -269,6 +276,12 @@ Erros têm sempre a mesma forma:
 | `/transferencias` | POST | RF-04, RF-05 |
 | `/contas/{id}/extrato` | GET | F-05 |
 | `/auditoria` | GET | RF-14 |
+
+**Os valores monetários viajam como texto JSON**, `"valor": "25.00"` e nunca
+`"valor": 25.00`. Um número JSON seria descodificado como `float`, e um `float`
+em dinheiro é a origem do desvio de arredondamento que RNF-01 proíbe. Exigir
+texto mantém a conversão para centavos a acontecer num sítio só, na fronteira
+(secção 3.1). Um número é recusado com `400 valor_invalido`.
 
 Toda escrita exige `op_id` no corpo. Uma réplica recusa escritas com:
 

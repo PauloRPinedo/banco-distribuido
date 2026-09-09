@@ -52,7 +52,14 @@ exercita.
 ### 4. Sem dependências externas
 
 Só a biblioteca padrão do Python 3.10+: `http.server`, `json`, `threading`,
-`socket`, `argparse`, `dataclasses`. A única exceção é `pytest`, e só para testes.
+`socket`, `argparse`, `dataclasses`, `unittest`.
+
+**Não há exceções**, nem sequer para os testes: usa-se o `unittest` da
+biblioteca padrão. Um `pytest` obrigatório significaria um `pip install` em
+cada um dos laptops da demonstração, e a promessa de `git clone` e executar
+deixaria de ser verdade justamente no dia em que interessa. Quem tiver o
+pytest instalado pode usá-lo à mesma: ele corre ficheiros `unittest` sem
+alteração nenhuma.
 
 A razão é prática: o sistema vai ser demonstrado em **2 a 3 laptops diferentes**
 numa rede local. Sem dependências, pôr o projeto a correr em cada máquina é
@@ -116,7 +123,7 @@ python3 -m banco.cli auditoria
 python3 -m banco.cli estado
 
 # testes
-python3 -m pytest -q
+python3 -m unittest discover -s tests
 ```
 
 Os comandos correm de dentro da pasta da etapa (`prototipo-1/`, `prototipo-2/`,

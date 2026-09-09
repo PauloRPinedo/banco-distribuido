@@ -84,7 +84,7 @@ curl -X POST http://192.168.0.11:8001/admin/falha -d '{"tipo": "limpar"}'
 
 ```bash
 python3 -m banco.bench --clientes 1,2,4,8,16,32
-python3 -m pytest -q
+python3 -m unittest discover -s tests
 ```
 
 ---
