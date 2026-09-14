@@ -442,11 +442,30 @@ ms en la primera petición tras estar inactivo). Aceptable para una demo.
 
 ### Paso 5 — El frontend, en Vercel
 
-Consola de Vercel (no de AWS): [vercel.com](https://vercel.com) → **Add
-New** → **Project** → conecta tu repositorio de GitHub → selecciona la
-carpeta `projeto-final/frontend` como *root directory* → en
-**Environment Variables**, agrega `VITE_BALANCEADOR_URL` con la Function
-URL del Paso 4.6 → **Deploy**.
+El frontend le habla siempre a `/api/...` (nunca a una URL completa — ver
+`src/api/cliente.js`); en Docker eso lo reenvía Nginx (`nginx.conf`), pero
+Vercel solo sirve archivos estáticos, sin ese reenvío. Por eso
+`frontend/vercel.json` ya trae una regla de *rewrite* que manda `/api/*` a
+la Function URL del Paso 4.6 — no hay que configurar ninguna variable de
+entorno para esto, el archivo ya la trae escrita (la Function URL no es un
+secreto: su modo de invocación es `NONE`, pensada para ser pública).
+
+**Si el repositorio no es tuyo** (eres colaborador, no dueño — como en este
+proyecto): consola de Vercel (no de AWS): [vercel.com](https://vercel.com)
+→ inicia sesión con tu cuenta de GitHub → **Add New** → **Project** →
+**Import Git Repository**. Si `banco-distribuido` no aparece en la lista,
+busca el enlace **"Adjust GitHub App Permissions"** (o "¿No ves tu
+repositorio?") — te lleva a la página de instalación de la GitHub App de
+Vercel, donde puedes **solicitar acceso** a ese repositorio puntual (GitHub
+te deja pedirlo porque eres colaborador con permiso de escritura). Eso le
+manda una notificación al dueño del repositorio (quien lo creó), que tiene
+que **aprobarla** desde GitHub (Settings → Integrations → Applications, o
+el enlace que le llega por correo/notificación). Una vez aprobada, el
+repositorio aparece en tu lista de Vercel.
+
+Con el repositorio ya conectado: selecciona la carpeta `projeto-final/frontend`
+como *root directory* → **Deploy**. No agregues variables de entorno, el
+`vercel.json` ya resuelve el reenvío.
 
 ### Paso 6 — Verificar de punta a punta
 
