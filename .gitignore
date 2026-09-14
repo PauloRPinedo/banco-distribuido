@@ -12,3 +12,6 @@ dist/
 
 .venv/
 .pytest_cache/
+
+# frontend (projeto-final/)
+node_modules/

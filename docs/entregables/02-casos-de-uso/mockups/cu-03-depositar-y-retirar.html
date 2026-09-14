@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CU-03 · Depositar y retirar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilo.css">
+<style>
+  .segmentado { display: flex; background: var(--fondo); border-radius: 12px; padding: 4px; }
+  .segmentado button {
+    flex: 1; border: none; background: transparent; padding: 10px; border-radius: 9px;
+    font-family: inherit; font-weight: 700; font-size: 13px; color: var(--texto-tenue); cursor: pointer;
+  }
+  .segmentado button.activo { background: var(--superficie); color: var(--morado); box-shadow: 0 1px 4px rgba(26,26,46,0.08); }
+</style>
+</head>
+<body>
+  <div class="telefono">
+    <header>
+      <div class="volver">‹</div>
+      <h1>Depositar / Retirar</h1>
+    </header>
+    <main>
+      <div class="segmentado">
+        <button class="activo">Depositar</button>
+        <button>Retirar</button>
+      </div>
+
+      <div class="tarjeta">
+        <div class="campo">
+          <label>Cuenta</label>
+          <select class="select-cuenta">
+            <option>Cuenta corriente · R$ 1.240,00 (BRL)</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Monto</label>
+          <div class="fila-monto">
+            <input class="input-monto" type="text" value="50,00" inputmode="decimal">
+            <div class="chip-moneda">BRL</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="resumen">
+        <div class="linea-resumen"><span>Saldo actual</span><strong>R$ 1.240,00</strong></div>
+        <div class="linea-total">
+          <span class="etiqueta">Saldo después</span>
+          <span class="valor">R$ 1.290,00</span>
+        </div>
+      </div>
+
+      <button class="btn-confirmar">Confirmar depósito</button>
+    </main>
+    <footer class="tab-bar">
+      <div class="tab"><div class="icono"></div>Inicio</div>
+      <div class="tab activo"><div class="icono"></div>Transferir</div>
+      <div class="tab"><div class="icono"></div>Extracto</div>
+      <div class="tab"><div class="icono"></div>Perfil</div>
+    </footer>
+  </div>
+</body>
+</html>
