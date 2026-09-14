@@ -3,7 +3,7 @@
 # GUIA-DESPLIEGUE.md, sección "Balanceador en Lambda".
 FROM public.ecr.aws/lambda/python:3.12
 
-COPY requirements-lambda.txt .
+COPY requirements.txt requirements-lambda.txt .
 RUN pip install --no-cache-dir -r requirements-lambda.txt
 
 COPY balanceador/ ${LAMBDA_TASK_ROOT}/balanceador/
