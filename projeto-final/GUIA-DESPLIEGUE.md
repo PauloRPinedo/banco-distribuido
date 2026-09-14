@@ -303,7 +303,7 @@ confundirte después:
 ```bash
 docker run -d --name postgres-a -p 5432:5432 \
   --restart unless-stopped --memory=512m \
-  -e POSTGRES_DB=banco -e POSTGRES_USER=banco -e POSTGRES_PASSWORD='CACuaPrqCVaebOiV5rtTyjcLrxynTGqo' \
+  -e POSTGRES_DB=banco -e POSTGRES_USER=banco -e POSTGRES_PASSWORD='<pega-aqui-lo-que-te-devolvio-openssl>' \
   -v ~/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro \
   postgres:16-alpine
 ```
@@ -333,10 +333,13 @@ docker run -d --name backend-a -p 8001:8001 \
   --restart unless-stopped \
   -e NODO_ID=A -e PUERTO=8001 \
   -e PGHOST=172.31.12.43 -e PGPORT=5432 -e PGDATABASE=banco \
-  -e PGUSER=banco -e PGPASSWORD='nwAmSymB9YoClizubyuq4igmcyazab6U' \
-  -e SECRET_KEY='9f0e5b18235d1bef7e99e78b500c87a4581afafc0496087ff29bc85fb14dc460' \
+  -e PGUSER=banco -e PGPASSWORD='<la-misma-contraseña-de-postgres-de-este-nodo>' \
+  -e SECRET_KEY='<la-misma-secret-key-en-los-3-backends>' \
   backend
 ```
+si me equivoco uso este comando para volver a empezar:
+
+docker rm -f backend-b
 
 (cambia `backend-a`, `NODO_ID=A` y la IP de Postgres según la instancia; el
 `--name` del contenedor y `NODO_ID` son cosas distintas — el primero es solo
@@ -368,6 +371,24 @@ Lambda (`balanceador/enrutador.py` es el mismo); solo cambia cómo se invoca
 **4.2 — Construir y subir la imagen** (este sí necesita **CloudShell** — el
 ícono de terminal en la barra superior de la consola, junto a la campana de
 notificaciones; es parte del portal, no algo que instalas). Una vez abierto:
+
+**Si CloudShell dice "No se puede crear el entorno... verificación de su
+cuenta está en curso"**: es una restricción real de AWS para cuentas nuevas
+(puede tardar hasta 2 días) — no hay nada que arreglar en tu configuración,
+solo hay que evitarlo. Alternativa, con el mismo criterio de "portal, sin
+instalar nada en tu máquina": usa una instancia `backend-X` que ya tiene
+Docker, conectándote con **EC2 Instance Connect** (igual que en el Paso 3).
+
+1. EC2 → Instancias → selecciona la instancia → **Actions** → **Security**
+   → **Modify IAM role** → **Create new IAM role** → Trusted entity:
+   `AWS service`, Use case: `EC2` → marca `AmazonEC2ContainerRegistryPowerUser`
+   → Role name: `backend-ecr-temporal` → **Create role** → vuelve, selecciónalo
+   → **Update IAM role** (permiso temporal, solo para poder hacer `push`; se
+   puede quitar después).
+2. **Connect** en esa misma instancia → EC2 Instance Connect, y corre ahí los
+   mismos comandos de abajo (el repositorio ya está clonado de cuando
+   montaste el backend — solo `cd banco-distribuido/projeto-final/balanceador`
+   y `git pull`).
 
 ```bash
 git clone https://github.com/PauloRPinedo/banco-distribuido.git
