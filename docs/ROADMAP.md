@@ -22,8 +22,14 @@ Regras que valem para as três:
 
 # Etapa 1 — Protótipo 1
 
-> Um banco correto num só nó. — **concluída**, 103 testes a passar.
+> Um banco correto num só nó. — **entregue** em setembro de 2026, 103 testes a passar.
 > Ver [`prototipo-1/RELATORIO.md`](../prototipo-1/RELATORIO.md).
+>
+> **Reaberta a seguir à entrega**, por decisão do grupo, para receber o PostgreSQL, a
+> replicação entre laptops, a injeção de falhas com sessão de ensaio e o frontend web.
+> As subfases 2.1 a 2.9 e 3.1 executam-se **dentro de `prototipo-1/`**. O desvio e o
+> que se perde com ele estão em [`SPECS.md`](SPECS.md) 11.6; o estado entregue vê-se
+> em `git show 7b430e6`.
 
 Ainda não há rede entre servidores, nem replicação, nem eleição. O que há é a base
 sem a qual nada disso faz sentido: o dinheiro tem de estar certo **antes** de ser
@@ -133,6 +139,9 @@ procurar-se-á no sítio errado durante dias.
 # Etapa 2 — Protótipo 2
 
 > Sobrevive à queda de um servidor.
+>
+> **Executa-se dentro de `prototipo-1/`**, não em `prototipo-2/` (ver 11.6 do
+> [`SPECS.md`](SPECS.md)). Os comandos das subfases correm da pasta `prototipo-1/`.
 
 O coração do trabalho. Aqui aparecem replicação, quórum, eleição e failover — e é
 aqui que se prova, com um servidor a ser morto ao vivo, que o dinheiro não se
@@ -142,98 +151,101 @@ perde.
 
 ### 2.1 Configuração do cluster — *Paulo*
 
-- [ ] `config/cluster.exemplo.json` com o formato da secção 9 do `SPECS.md`
-- [ ] Carregamento com validação: ids únicos, endereços alcançáveis,
+- [x] `config/cluster.exemplo.json` com o formato da secção 9 do `SPECS.md`
+- [x] Carregamento com validação: ids únicos, endereços alcançáveis,
       `heartbeat_ms` muito menor que o mínimo do *timeout* de eleição
-- [ ] Cliente HTTP interno entre nós, com *timeout* e sem bloquear o nó que chama
-- [ ] `config/cluster.json` no `.gitignore`
+- [x] Cliente HTTP interno entre nós, com *timeout* e sem bloquear o nó que chama
+- [x] `config/cluster.json` no `.gitignore`
 - **Pronto quando:** subir 3 nós locais e cada um listar os outros dois
 
 ### 2.2 Log de replicação — *Cristhian*
 
-- [ ] Estrutura do log em memória sobre o WAL: `ultimo_indice`, `ultimo_epoch`,
+- [x] Estrutura do log em memória sobre o WAL: `ultimo_indice`, `ultimo_epoch`,
       `indice_commit`
-- [ ] Acrescentar entradas com verificação de `indice_anterior` e `epoch_anterior`
-- [ ] Truncar entradas divergentes e não confirmadas, **nunca abaixo do
+- [x] Acrescentar entradas com verificação de `indice_anterior` e `epoch_anterior`
+- [x] Truncar entradas divergentes e não confirmadas, **nunca abaixo do
       `indice_commit`**
-- [ ] `POST /interno/replicar` com replicação e *heartbeat* no mesmo RPC
-- [ ] `GET /interno/log?desde=N` para a réplica muito atrasada
-- [ ] Testes unitários: correspondência de log, truncagem, recusa de `epoch` menor
+- [x] `POST /interno/replicar` com replicação e *heartbeat* no mesmo RPC
+- [x] `GET /interno/log?desde=N` para a réplica muito atrasada
+- [x] Testes unitários: correspondência de log, truncagem, recusa de `epoch` menor
 
 ### 2.3 Confirmação por maioria — *Cristhian*
 
-- [ ] O primário replica em paralelo e conta-se a si próprio no quórum
-- [ ] Só responde ao cliente **depois** da maioria (RF-10)
-- [ ] `503 sem_quorum` quando a maioria não responde a tempo, com a entrada
+- [x] O primário replica em paralelo e conta-se a si próprio no quórum
+- [x] Só responde ao cliente **depois** da maioria (RF-10)
+- [x] `503 sem_quorum` quando a maioria não responde a tempo, com a entrada
       gravada mas não confirmada
-- [ ] Modo somente leitura quando a maioria está inacessível há mais de um
+- [x] Modo somente leitura quando a maioria está inacessível há mais de um
       *timeout* de eleição
-- [ ] Teste: com 2 dos 3 nós vivos as escritas passam; com 1, são recusadas e as
+- [x] Teste: com 2 dos 3 nós vivos as escritas passam; com 1, são recusadas e as
       leituras continuam
 
 ### 2.4 Heartbeat e deteção — *Cristhian*
 
-- [ ] *Heartbeat* a cada `heartbeat_ms`, reaproveitando `/interno/replicar`
-- [ ] *Timeout* de eleição **sorteado** em `[800, 1500] ms` a cada ronda
-- [ ] **Semente derivada por nó** (`semente_global + crc32(id)`) — com a mesma
+- [x] *Heartbeat* a cada `heartbeat_ms`, reaproveitando `/interno/replicar`
+- [x] *Timeout* de eleição **sorteado** em `[800, 1500] ms` a cada ronda
+- [x] **Semente derivada por nó** (`semente_global + crc32(id)`) — com a mesma
       semente nos três, todos sorteiam o mesmo valor, candidatam-se juntos e a
       eleição nunca converge. É o erro mais caro desta etapa
-- [ ] Teste de reprodutibilidade: a mesma semente global produz a mesma execução
+- [x] Teste de reprodutibilidade: a mesma semente global produz a mesma execução
       (RNF-06)
 
 ### 2.5 Eleição e fencing — *Cristhian*
 
-- [ ] Máquina de estados réplica / candidato / primário
-- [ ] `POST /interno/votar` com as três condições da secção 8.2 do `SPECS.md`
-- [ ] `epoch` e `votou_em` gravados com `fsync` **antes** de responder ao voto
-- [ ] Despromoção imediata ao ver um `epoch` maior (*fencing*)
-- [ ] *Heartbeat* imediato ao assumir, e entrada `noop` no próprio `epoch` antes
+- [x] Máquina de estados réplica / candidato / primário
+- [x] `POST /interno/votar` com as três condições da secção 8.2 do `SPECS.md`
+- [x] `epoch` e `votou_em` gravados com `fsync` **antes** de responder ao voto
+- [x] Despromoção imediata ao ver um `epoch` maior (*fencing*)
+- [x] *Heartbeat* imediato ao assumir, e entrada `noop` no próprio `epoch` antes
       de aceitar escritas
-- [ ] Testes: nunca dois primários no mesmo `epoch`; empate resolve-se com novo
+- [x] Testes: nunca dois primários no mesmo `epoch`; empate resolve-se com novo
       `epoch`; um nó não vota duas vezes no mesmo `epoch`
 
 ### 2.6 Réplica e reintegração — *Jefferson*
 
-- [ ] A réplica aplica entradas até ao `indice_commit` recebido do líder
-- [ ] Arranque **sempre como réplica**, mesmo tendo sido primário antes de cair
-- [ ] Recuperação por *replay* e depois sincronização com o primário (RF-12, F-09)
-- [ ] Testes: nó reiniciado apanha o log e volta a participar; nó parado durante
+- [x] A réplica aplica entradas até ao `indice_commit` recebido do líder
+- [x] Arranque **sempre como réplica**, mesmo tendo sido primário antes de cair
+- [x] Recuperação por *replay* e depois sincronização com o primário (RF-12, F-09)
+- [x] Testes: nó reiniciado apanha o log e volta a participar; nó parado durante
       50 operações põe-se em dia
 
 ### 2.7 Cliente que encontra o primário — *Paulo*
 
-- [ ] Lista de endereços; segue `primario_provavel` em `409 nao_sou_primario`
-- [ ] Retentativa com o **mesmo** `op_id` (RF-13)
-- [ ] `banco.cli estado` mostra papel, `epoch` e índice de cada nó
-- [ ] Mensagem clara quando não há maioria, com o passo seguinte
+- [x] Lista de endereços; segue `primario_provavel` em `409 nao_sou_primario`
+- [x] Retentativa com o **mesmo** `op_id` (RF-13)
+- [x] `banco.cli estado` mostra papel, `epoch` e índice de cada nó
+- [x] Mensagem clara quando não há maioria, com o passo seguinte
 
 ### 2.8 Ensaio em 2 ou 3 laptops — *Paulo, com todos*
 
-- [ ] Guia de rede: IPs, portas, *firewall*
-- [ ] **Testar cada endereço com `curl` antes de subir o cluster.** Com uma porta
+- [x] Guia de rede: IPs, portas, *firewall* — [`prototipo-1/REDE.md`](../prototipo-1/REDE.md)
+- [x] **Testar cada endereço com `curl` antes de subir o cluster.** Com uma porta
       bloqueada, os sintomas — eleições sem fim, `epoch` a subir sozinho —
       parecem erro de protocolo e levam a procurar no sítio errado
+      — `scripts/verificar_rede.sh`, e a tabela sintoma→causa do `REDE.md`
 - [ ] **3 nós mesmo com 2 laptops** (PC1 corre A, PC2 corre B e C). Com 2 nós a
       maioria é 2 e a queda de um deixa o outro em somente leitura — não há
       failover com escrita para demonstrar
 - [ ] Demonstração gravada: transferências a correr, matar o primário, o cluster
       reeleger, a auditoria dar o mesmo total
 - **Pronto quando:** a demonstração corre de ponta a ponta em máquinas reais
+- *Estado: o guia e os scripts estão escritos e o failover foi verificado com três
+  processos reais numa máquina. Falta o ensaio nos dois laptops.*
 
 ### 2.9 Testes de falha — *Cristhian e Jefferson*
 
-- [ ] `SIGKILL` no primário a meio de transferências concorrentes; a soma no fim
+- [x] `SIGKILL` no primário a meio de transferências concorrentes; a soma no fim
       é a mesma (RNF-01, RNF-02)
-- [ ] Tempo de failover medido e abaixo de 2 s (RNF-03)
-- [ ] Retentativa depois do failover não duplica a operação
-- [ ] Primário antigo que regressa é rejeitado e despromove-se
+- [x] Tempo de failover medido e abaixo de 2 s (RNF-03)
+- [x] Retentativa depois do failover não duplica a operação
+- [x] Primário antigo que regressa é rejeitado e despromove-se
 
 ### 2.10 Fecho da etapa — *todos*
 
-- [ ] `prototipo-2/README.md` completo, com a divisão de trabalho
-- [ ] Modos de falha documentados: partição de rede, primário lento, maioria
+- [x] `prototipo-2/README.md` completo, com a divisão de trabalho
+- [x] Modos de falha documentados: partição de rede, primário lento, maioria
       perdida (RNF-10)
-- [ ] Decisões e desvios registados no `SPECS.md` **com a justificação**
+- [x] Decisões e desvios registados no `SPECS.md` **com a justificação**
 
 ---
 
@@ -248,11 +260,17 @@ o medir com honestidade e para o apresentar.
 
 ### 3.1 Injeção de falhas — *Cristhian*
 
-- [ ] `POST /admin/falha` com `atraso`, `isolar`, `derrubar` e `limpar` (RF-16, F-10)
-- [ ] `isolar` faz o nó descartar mensagens dos nós indicados — permite reproduzir
+> Antecipada para dentro de `prototipo-1/`: é o que permite derrubar um nó a partir
+> do CLI de qualquer laptop. Ganha uma exigência que não estava prevista — a **sessão
+> de ensaio exclusiva**, para que dois operadores não injetem falhas ao mesmo tempo.
+
+- [x] `POST /admin/falha` com `atraso`, `isolar`, `derrubar` e `limpar` (RF-16, F-10)
+- [x] `isolar` faz o nó descartar mensagens dos nós indicados — permite reproduzir
       uma partição de rede num teste automático, sem mexer na *firewall*
 - [ ] Teste de *split-brain*: isolar o primário, deixar os outros dois eleger, e
       verificar que o antigo não confirma nada ao voltar
+      — *o mecanismo existe (`falha isolar`) e há um teste a tirar um nó do
+      quórum; o cenário completo continua por escrever*
 - [ ] Teste de partição simétrica: nenhum lado tem maioria, ninguém aceita escritas
 
 ### 3.2 Métricas e log estruturado — *Paulo*
@@ -267,11 +285,15 @@ o medir com honestidade e para o apresentar.
 
 - [ ] `GET /painel`: um ficheiro HTML com CSS embutido, servido pelo nó, sem
       framework nem *build* (F-11)
-- [ ] O total em circulação em destaque, com o cronómetro de "inalterado há…"
+      — *existe um frontend equivalente em `prototipo-1/frontend/`, servido à
+      parte e publicado na Vercel; o painel embutido no nó continua por fazer*
+- [x] O total em circulação em destaque, com o cronómetro de "inalterado há…"
 - [ ] Faixa de mandatos com os `epoch` e quem mandou em cada um
-- [ ] Cartões de nó com papel por palavras e atraso em número de entradas
-- [ ] Estados de carregamento, de sem quórum e de sem contacto
+- [x] Cartões de nó com papel por palavras e atraso em número de entradas
+- [x] Estados de carregamento, de sem quórum e de sem contacto
 - [ ] Atualização por `fetch` a cada segundo; legível sem JavaScript
+      — *o `fetch` a cada segundo está feito; sem JavaScript a página mostra a
+      estrutura mas não os números, porque não há servidor a renderizá-la*
 - [ ] Cor só quando há desvio; contraste AA verificado
 
 ### 3.4 Medições — *Jefferson*

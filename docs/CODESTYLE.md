@@ -151,7 +151,7 @@ fala. Todas as decisões abaixo saem daí.
 
 ### 7.1 Cor significa desvio
 
-Um cluster saudável é **roxo e branco**, sem mais cor nenhuma. Verde, âmbar e coral
+Um cluster saudável é **azul e branco**, sem mais cor nenhuma. Verde, âmbar e coral
 só aparecem quando algo saiu do normal.
 
 A tentação é o semáforo: uma luz verde por nó quando está tudo bem. Rejeita-se
@@ -213,10 +213,10 @@ Os nomes das variáveis vêm do mundo do produto, não de uma escala genérica.
 
 ```css
 :root {
-  --roxo:          #820AD1;   /* identidade */
-  --roxo-tenue:    #F3E8FB;   /* fundo do cartão do total */
+  --marca:         #1B4DB1;   /* identidade */
+  --marca-tenue:   #E8EEFB;   /* fundo do cartão do total */
   --papel:         #FFFFFF;   /* superfície dos cartões */
-  --papel-fundo:   #F6F4F8;   /* chão da página, com o mesmo matiz roxo */
+  --papel-fundo:   #F4F6FB;   /* chão da página, com o mesmo matiz da marca */
   --tinta:         #191919;   /* texto principal */
   --tinta-media:   #5C5C66;   /* texto de apoio */
   --tinta-fraca:   #8E8E99;   /* metadados, unidades, legendas */
@@ -232,7 +232,14 @@ Os nomes das variáveis vêm do mundo do produto, não de uma escala genérica.
 ```
 
 Um só matiz estrutura a página: o chão, os cartões e o fundo do total são o mesmo
-roxo em lightness diferente. As superfícies não mudam de cor, mudam de claridade.
+azul em lightness diferente. As superfícies não mudam de cor, mudam de claridade.
+
+**Porquê azul, e não o roxo da referência.** A linguagem visual é a do Nubank; a cor
+não pode ser, ou é a marca de outra empresa num trabalho que não é dela. Dos matizes
+disponíveis, o azul é o único que sobra limpo: o verde já é `--carimbo`, o âmbar é
+`--atencao` e o coral é `--fora-do-ar`. Uma marca verde-azulada competiria com o
+carimbo de confirmado justamente no ecrã em que ele importa. `--marca` sobre
+`--papel` dá 7,1:1, bem acima do 4.5:1 exigido.
 
 Os tons de estado existem em par — texto escuro sobre fundo muito claro — porque o
 âmbar e o coral saturados falham o contraste AA sobre branco. Todo o texto cumpre

@@ -12,3 +12,14 @@ dist/
 
 .venv/
 .pytest_cache/
+
+# publicação do frontend na Vercel: credenciais e cache locais
+*/frontend/.vercel/
+*/frontend/node_modules/
+
+# o desenho do canvas é regenerado a partir dos .dc.html
+*/frontend/desenho/*.html
+!*/frontend/desenho/*.dc.html
+
+# prova de posse da sessão de ensaio, por operador
+.banco_ensaio

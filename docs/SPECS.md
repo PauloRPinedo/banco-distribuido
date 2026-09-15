@@ -182,17 +182,100 @@ a lado com `tail` responde à pergunta em segundos.
 4. Arrancar **sempre como réplica**, mesmo que este nó fosse o primário antes de
    cair. Quem manda decide-se por eleição, nunca pelo que o nó se lembra de si.
 
-> **No Protótipo 1 não há papel nenhum.** O ponto 4 pressupõe uma eleição que
-> ainda não existe, e uma réplica sozinha recusaria todas as escritas. Com um nó
-> só, ele aceita escritas sempre; `epoch` fica em 1 e `estado.json` é gravado mas
-> não decide nada. O ficheiro existe desde já para o formato do WAL não mudar
-> entre etapas — converter ficheiros a meio do projeto seria trabalho a dobrar e
-> uma segunda versão para explicar na defesa.
+> **Histórico.** Até setembro de 2026 o Protótipo 1 não tinha papel nenhum: com um
+> nó só, aceitava escritas sempre, o `epoch` ficava em 1 e o `estado.json` era
+> gravado sem decidir nada. Ao reabrir-se a etapa para receber a replicação (11.6),
+> o ponto 4 passou a aplicar-se tal como está escrito. O estado anterior vê-se em
+> `git show 7b430e6`.
 
 **Não há snapshots.** O estado reconstrói-se sempre por *replay* completo do WAL.
 Numa demonstração o log tem centenas ou milhares de entradas e o *replay* demora
 milissegundos; um mecanismo de snapshot custaria umas duzentas linhas e um conjunto
 novo de casos extremos para não resolver problema nenhum aqui.
+
+### 4.3 PostgreSQL como armazém do log
+
+Desde setembro de 2026 o armazém principal é o **PostgreSQL**, um por laptop, com uma
+base de dados por nó (`banco_a`, `banco_b`, `banco_c`). O WAL em JSONL de 4.1
+continua a existir como `--armazem ficheiro`, para os testes de linha truncada e como
+saída de emergência no dia da demonstração. A justificação do desvio está em 11.4.
+
+**Cada nó tem a sua base.** O consenso é o desta especificação, implementado de raiz;
+a replicação nativa do PostgreSQL **não se usa**, porque a proposta exige que o
+protocolo seja escrito pelo grupo. Bases separadas garantem que os nós não partilham
+estado, e têm um efeito lateral útil: matar o processo de um nó não mata o PostgreSQL
+dele, que é exatamente o cenário "cai, reinicia, recupera" que se quer demonstrar.
+
+#### Esquema
+
+```sql
+CREATE TABLE registo_do_log (
+    indice   BIGINT PRIMARY KEY,
+    epoch    BIGINT NOT NULL,
+    op_id    TEXT   NOT NULL,
+    tipo     TEXT   NOT NULL,
+    dados    JSONB  NOT NULL,
+    instante DOUBLE PRECISION NOT NULL
+);
+CREATE UNIQUE INDEX log_op_id_unico ON registo_do_log (op_id);
+
+CREATE TABLE estado_do_no (
+    no_id         TEXT PRIMARY KEY,
+    epoch         BIGINT NOT NULL DEFAULT 1,
+    votou_em      TEXT,
+    indice_commit BIGINT NOT NULL DEFAULT 0
+);
+```
+
+**O dinheiro nunca é uma coluna.** Vive dentro de `dados`, em `jsonb`, como inteiro de
+centavos. Três tipos foram recusados, e o porquê importa na defesa:
+
+| Tipo recusado | Porquê |
+|---|---|
+| `NUMERIC(12,2)` | Obrigaria a converter entre reais e centavos à entrada da base — um **segundo** sítio de conversão, quando 3.1 exige que haja um só |
+| `MONEY` | Depende do `lc_monetary` do servidor. A mesma base em dois laptops com *locale* diferente daria valores diferentes |
+| `DOUBLE PRECISION` | É literalmente o que RNF-01 proíbe |
+
+Há um teste-guarda no contrato do armazém: grava-se `9007199254740993` centavos — um
+inteiro acima de 2^53, onde um `float` perde o último dígito — e verifica-se que o que
+volta é `int` e é o mesmo número.
+
+#### Durabilidade
+
+`synchronous_commit = on` com a ligação em `autocommit`: um `INSERT` é uma transação,
+e `COMMIT` só devolve depois de o registo estar em disco. É a equivalência exata do
+`write` + `flush` + `os.fsync` de 4.1, e a ordem obrigatória de uma escrita (secção 5)
+não muda um passo — o "gravar no WAL + fsync" lê-se agora como "`INSERT` + commit
+síncrono".
+
+A definição é forçada por sessão, não deixada ao `postgresql.conf`, e o nó imprime
+`fsync` e `synchronous_commit` na linha de arranque. É a prova que se mostra quando
+perguntarem como é que se sabe que houve `fsync`.
+
+#### `indice_commit` é um prefixo
+
+O commit guarda-se como **um número** em `estado_do_no`, não como um campo por linha.
+Neste protocolo o que está confirmado é sempre um prefixo contíguo do log; um sinal
+por linha permitiria representar estados que o protocolo não consegue produzir, e a
+primeira coisa que se faz com uma representação assim é enganar-se a lê-la.
+
+No arranque aplicam-se as entradas até `indice_commit` e só até aí. As de índice maior
+ficam gravadas e por aplicar — quem decide o destino delas é o primário seguinte
+(secção 7).
+
+#### Deduplicação
+
+A tabela de `op_id` em memória, reconstruída por *replay*, continua a ser o mecanismo.
+O que a base acrescenta é uma rede de segurança que o JSONL não tinha: `UNIQUE (op_id)`.
+Se o processo morrer entre o commit do `INSERT` e o aplicar, uma repetição não consegue
+inserir uma segunda linha com o mesmo `op_id`.
+
+#### Dois nós contra a mesma base
+
+`no_id` é chave primária de `estado_do_no`, e o nó recusa-se a arrancar se a base
+pertencer a outro id. Sem isto, dois nós apontados ao mesmo DSN partilham log em
+silêncio, e a corrupção que daí vem parece um erro de protocolo — perdem-se horas a
+procurar no sítio errado.
 
 ---
 
@@ -301,6 +384,20 @@ As leituras são servidas pelo primário. Uma réplica só responde a leituras c
 | `/interno/votar` | POST | Pedido de voto |
 | `/interno/log?desde=N` | GET | Réplica atrasada pede o log a partir de N |
 | `/interno/estado` | GET | Papel, `epoch`, último índice, `indice_commit` |
+| `/interno/cluster` | GET | **Todos** os nós, vistos por este (F-11) |
+
+`/interno/cluster` é uma rota de **leitura**, e é deliberadamente separada de
+`/interno/estado`: aquela é chamada pelos pares a cada *heartbeat* e pelo
+`verificar_rede.sh`, e pô-la a fazer chamadas de rede tornaria o caminho quente
+caro — e recursivo. Esta pergunta a cada par o `/interno/estado` simples, em
+paralelo e com o `timeout_replicacao_ms` como prazo, por isso a recursão é
+impossível por construção.
+
+Existe porque o frontend vê o cluster através de **um** túnel, não três. Um par
+que não responde volta com `vivo: false` em vez de desaparecer da lista: durante
+um failover é justamente o nó em falta que interessa ver. O campo `eu` diz qual
+nó respondeu — a resposta é sempre uma opinião, e apresentá-la como verdade
+absoluta seria mentir.
 
 Não há autenticação nem cifragem: está fora do âmbito por decisão da proposta, e é
 coerente com o modelo de falhas — um nó pode morrer ou atrasar-se, mas não mente.
@@ -311,7 +408,15 @@ coerente com o modelo de falhas — um nó pode morrer ou atrasar-se, mas não m
 |---|---|---|
 | `/admin/metricas` | GET | RF-15 |
 | `/admin/falha` | POST | RF-16, F-10 |
+| `/admin/ensaio` | GET, POST | Sessão de ensaio exclusiva (11.7) |
 | `/painel` | GET | F-11, painel web |
+
+**Tomar a sessão de ensaio só acontece no primário.** É um *lease* dele, que se
+propaga às réplicas montado no *heartbeat*. Deixar tomá-la numa réplica foi o erro
+que tornava a exclusão inútil: dois operadores tomavam-na em nós diferentes, os
+dois achavam-se donos, e nenhum era recusado. **Ler** pode ser em qualquer nó —
+saber quem tem a sessão é justamente o que faz falta quando o primário está em
+baixo.
 
 ---
 
@@ -560,6 +665,86 @@ trabalho.
 O projeto final regista o número medido e a análise. Relatar a medição real vale
 mais do que ajustar o requisito para que ele pareça cumprido.
 
+### 11.4 PostgreSQL substitui o WAL em JSONL
+
+Decisão do grupo, setembro de 2026. O armazém principal do log passa a ser o
+PostgreSQL (4.3), e com ele entra a primeira dependência externa do projeto,
+`psycopg[binary]`.
+
+**O que se ganha:** o `INSERT` e o avanço do `indice_commit` passam a ser transações
+de uma base que já resolve durabilidade e atomicidade; ganha-se `UNIQUE (op_id)` como
+rede de segurança da deduplicação; e na defesa pode-se responder a perguntas sobre o
+log com SQL em vez de com `grep`.
+
+**O que se perde, e é preciso dizê-lo:** a promessa de `git clone` e executar deixa de
+valer para o servidor. Perde-se também o `tail` a três WAL lado a lado, que era a
+ferramenta mais rápida para perceber um failover estranho — a compensação é
+`--armazem ficheiro`, que volta ao JSONL e faz o cluster funcionar na mesma.
+
+**Porque é que o consenso não usa a replicação nativa do PostgreSQL:** a proposta
+exige, nas restrições, que "o consenso e o protocolo de transações são implementados
+do zero, sem bibliotecas prontas para essas funções". Usar *streaming replication*
+resolveria o problema apagando justamente o trabalho que a disciplina avalia. Cada nó
+tem a sua base, e o que as mantém de acordo é o protocolo da secção 7.
+
+### 11.5 Frontend web que opera o banco
+
+A proposta exclui "interface gráfica web" do âmbito. O desvio 11.2 já acrescentou um
+painel de monitorização, só de leitura. Este vai mais longe: é um frontend que
+**opera** o banco — cria contas, deposita, saca e transfere — publicado na Vercel e
+ligado a um nó por um túnel HTTPS.
+
+**Limites que o mantêm honesto:** o CLI continua a ser a interface oficial do trabalho
+(F-12, RF-17) e é por ele que passam as demonstrações avaliadas; o frontend não tem
+nenhuma capacidade que o CLI não tenha; e nenhuma regra de negócio vive no navegador —
+o `op_id` é gerado no cliente e os valores viajam como texto, tal como no CLI, e é o
+servidor que valida tudo.
+
+**O que o túnel implica:** durante a demonstração, um banco sem autenticação fica
+acessível a partir da internet, com URL aleatória. Levanta-se para a demonstração e
+fecha-se a seguir. Autenticação e cifragem continuam fora do âmbito por decisão da
+proposta, e omitir esta consequência seria desonesto.
+
+**Porque é que o nó do túnel encaminha as escritas:** o túnel aponta a um nó só.
+Quando esse nó deixa de ser primário, responderia `409 nao_sou_primario` com um
+`primario_provavel` que é um endereço de LAN — inalcançável do navegador. O nó passa
+então a encaminhar a escrita ao primário como cliente puro, sem gravar nada
+localmente, o que não mexe na ordem da secção 5. Sem isto, o failover partia a página
+web justamente no momento que ela existe para mostrar.
+
+### 11.6 As etapas 2 e 3 dentro de `prototipo-1/`
+
+`CONVENCOES.md` diz que uma etapa entregue não se altera. O Protótipo 1 foi entregue
+em setembro de 2026 e reaberto logo a seguir para receber a replicação, a eleição, a
+injeção de falhas, a sessão de ensaio exclusiva e o frontend.
+
+Não é um erro corrigido tarde — é âmbito acrescentado depois da entrega, a pedido do
+grupo. **O que se perde é a evidência da progressão:** deixa de haver uma pasta que
+mostre o banco de um nó só a funcionar isolado, que era a razão de ser da divisão em
+etapas. A compensação possível é pequena mas real: o estado entregue continua
+acessível em `git show 7b430e6`, e o README da etapa tem uma secção "o que mudou face
+à etapa entregue" que diz linha a linha o que passou a ser diferente.
+
+### 11.7 Sessão de ensaio exclusiva
+
+Não está na proposta, e é uma regra de **operação**, não de banco: na demonstração
+há dois laptops e três pessoas, todas com o CLI. Dois operadores a derrubar nós ao
+mesmo tempo produzem um cluster sem maioria por acidente, e o que se vê no ecrã
+deixa de ser a experiência que se estava a fazer — passa a ser um acidente que
+ainda por cima parece um erro do protocolo.
+
+A tranca vive no primário, em memória, e viaja para as réplicas no *heartbeat*.
+Duas alternativas foram recusadas:
+
+- **local a cada nó** não excluiria nada: um operador tomava-a em A e o outro em B;
+- **pelo log replicado** sobreviveria ao failover, mas meteria estado operativo na
+  pista de auditoria do dinheiro, correria os índices e sujaria o extrato das
+  contas com eventos que não são operações bancárias.
+
+Morre com o primário, e ainda bem: quem tem a sessão é exatamente quem acabou de o
+matar, e voltar a tomá-la é um comando. A caducidade existe para o outro caso, o do
+operador que a toma e vai almoçar.
+
 ---
 
 ## 12. Fora de âmbito
@@ -571,7 +756,7 @@ mais do que ajustar o requisito para que ele pareça cumprido.
 | Mudança de membros em execução (RF-18) | Prioridade Baixa na proposta. Fica documentado como extensão |
 | Contas repartidas entre servidores | Todos os nós têm todas as contas — é o que dispensa o *commit* em duas fases |
 | Replicação entre regiões | Excluído pela proposta |
-| Dependências externas | Ver [`CONVENCOES.md`](CONVENCOES.md) |
+| Dependências externas além do `psycopg` | Uma só, e confinada a um módulo. Ver [`CONVENCOES.md`](CONVENCOES.md) e 11.4 |
 
 ---
 
@@ -588,10 +773,10 @@ mais do que ajustar o requisito para que ele pareça cumprido.
 | F-05 | Extrato de operações | Protótipo 1 |
 | F-06 | Auditoria da soma dos saldos | Protótipo 1 |
 | F-07 | Operações concorrentes | Protótipo 1 |
-| F-08 | Funcionar com servidores fora do ar | Protótipo 2 |
-| F-09 | Recuperar estado após reinício | Protótipo 2 |
-| F-10 | Injeção de falhas | Projeto final |
-| F-11 | Visualizar o estado do sistema | Projeto final |
+| F-08 | Funcionar com servidores fora do ar | Protótipo 1 (11.6) |
+| F-09 | Recuperar estado após reinício | Protótipo 1 (11.6) |
+| F-10 | Injeção de falhas | Protótipo 1 (11.6) |
+| F-11 | Visualizar o estado do sistema | Protótipo 1, no frontend (11.5) |
 | F-12 | Cliente de linha de comando | Protótipo 1 |
 
 ### Requisitos funcionais
@@ -606,14 +791,14 @@ mais do que ajustar o requisito para que ele pareça cumprido.
 | RF-06 | Protótipo 1 | Validação antes do log (secção 5) |
 | RF-07 | Protótipo 1 | `lock` de estado por nó (secção 5) |
 | RF-08 | Protótipo 1 | *Locks* por conta em ordem total (secção 5) |
-| RF-09 | Protótipo 2 | Eleição por maioria (secção 8) |
-| RF-10 | Protótipo 2 | Confirmação por maioria (secção 7) |
-| RF-11 | Protótipo 2 | Failover; com 2 caídos, somente leitura (11.1) |
-| RF-12 | Protótipo 2 | Recuperação por *replay* + reintegração (4.2, 7) |
-| RF-13 | Protótipo 2 | Deduplicação por `op_id` (3.3) |
+| RF-09 | Protótipo 1 | Eleição por maioria (secção 8) |
+| RF-10 | Protótipo 1 | Confirmação por maioria (secção 7) |
+| RF-11 | Protótipo 1 | Failover; com 2 caídos, somente leitura (11.1) |
+| RF-12 | Protótipo 1 | Recuperação por *replay* + reintegração (4.2, 7) |
+| RF-13 | Protótipo 1 | Deduplicação por `op_id` (3.3) |
 | RF-14 | Protótipo 1 | `GET /auditoria` |
 | RF-15 | Projeto final | `GET /admin/metricas` |
-| RF-16 | Projeto final | `POST /admin/falha` |
+| RF-16 | Protótipo 1 | `POST /admin/falha`, com sessão de ensaio exclusiva |
 | RF-17 | Protótipo 1 | `banco.cli` |
 | RF-18 | — | Fora de âmbito, documentado (secção 12) |
 
@@ -621,13 +806,13 @@ mais do que ajustar o requisito para que ele pareça cumprido.
 
 | ID | Critério | Etapa | Como se verifica |
 |---|---|---|---|
-| RNF-01 | A soma nunca muda | Protótipo 1 e 2 | Teste de invariante sob milhares de operações sorteadas |
-| RNF-02 | Operação confirmada sobrevive | Protótipo 2 | `SIGKILL` no primário a meio de transferências |
-| RNF-03 | Novo primário em menos de 2 s | Protótipo 2 | Medição do tempo de failover |
+| RNF-01 | A soma nunca muda | Todas | Teste de invariante sob milhares de operações sorteadas |
+| RNF-02 | Operação confirmada sobrevive | Protótipo 1 | `SIGKILL` no primário a meio de transferências |
+| RNF-03 | Novo primário em menos de 2 s | Protótipo 1 | Medição do tempo de failover |
 | RNF-04 | 500 TPS local | Projeto final | *Benchmark*; meta de medição (11.3) |
 | RNF-05 | p99 abaixo de 200 ms | Projeto final | *Benchmark* com concorrência crescente |
-| RNF-06 | Mesma semente, mesmo resultado | Protótipo 2 | Semente derivada por nó (8.1) |
+| RNF-06 | Mesma semente, mesmo resultado | Protótipo 1 | Semente derivada por nó (8.1) |
 | RNF-07 | Log estruturado e métricas | Projeto final | Secção 10 |
 | RNF-08 | Módulos com código, testes e documentação | As três | Estrutura em `CODESTYLE.md` |
-| RNF-09 | Um comando em Linux e macOS | Protótipo 1 | Só biblioteca padrão, sem instalação |
+| RNF-09 | Um comando em Linux e macOS | Protótipo 1 | Testes sem instalação; o servidor exige PostgreSQL (11.4) |
 | RNF-10 | Cada componente documenta os seus modos de falha | As três | README de cada etapa |

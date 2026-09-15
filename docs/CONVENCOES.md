@@ -49,25 +49,40 @@ se negocia — é o projeto inteiro. O que se corta é acessório: otimização,
 generalidade, configurabilidade, casos extremos que nenhum teste da disciplina
 exercita.
 
-### 4. Sem dependências externas
+### 4. Dependências externas
 
-Só a biblioteca padrão do Python 3.10+: `http.server`, `json`, `threading`,
-`socket`, `argparse`, `dataclasses`, `unittest`.
+A base continua a ser a biblioteca padrão do Python 3.10+: `http.server`, `json`,
+`threading`, `socket`, `argparse`, `dataclasses`, `unittest`.
 
-**Não há exceções**, nem sequer para os testes: usa-se o `unittest` da
-biblioteca padrão. Um `pytest` obrigatório significaria um `pip install` em
-cada um dos laptops da demonstração, e a promessa de `git clone` e executar
-deixaria de ser verdade justamente no dia em que interessa. Quem tiver o
-pytest instalado pode usá-lo à mesma: ele corre ficheiros `unittest` sem
-alteração nenhuma.
+**Há exatamente uma dependência externa**, decidida pelo grupo em setembro de 2026:
 
-A razão é prática: o sistema vai ser demonstrado em **2 a 3 laptops diferentes**
-numa rede local. Sem dependências, pôr o projeto a correr em cada máquina é
-`git clone` e executar — não há venv para criar, `pip install` para falhar nem
-versão divergente entre computadores.
+| Dependência | Onde | Porquê |
+|---|---|---|
+| `psycopg[binary]>=3.1` | Só em `banco/persistencia/armazem_postgres.py` | O grupo decidiu que o PostgreSQL substitui o WAL em JSONL como armazém principal do log (ver `SPECS.md` 11.4) |
 
-Acrescentar uma dependência é decisão do grupo, discutida antes, nunca resolvida
-no meio de uma tarefa.
+A dependência está **confinada a um único módulo**, importada dentro da função que
+a usa e nunca no topo. A consequência é verificável num comando:
+
+```bash
+python3 -c "import banco.cluster.no"   # não toca em psycopg
+```
+
+**Os testes continuam a correr sem instalar nada.** `python3 -m unittest discover -s tests`
+usa um armazém em memória; os testes contra a base real saltam-se sozinhos, com o
+motivo escrito, se a variável `BANCO_BD_TESTE` não estiver definida. Continua a
+usar-se o `unittest` da biblioteca padrão — um `pytest` obrigatório significaria um
+`pip install` a mais em cada laptop, e quem o tiver instalado corre estes ficheiros
+sem alteração nenhuma.
+
+**O que se perdeu, dito sem rodeios:** pôr o *servidor* a correr numa máquina nova
+já não é só `git clone` e executar. Passa a ser `git clone`, instalar o PostgreSQL,
+correr `scripts/preparar_postgres.sh` e `pip install -r requisitos.txt`. Para o dia
+da demonstração há duas saídas de emergência: `compose.yaml`, que sobe um
+`postgres:16` com versão fixa, e `--armazem ficheiro`, que volta ao WAL em JSONL e
+faz o cluster funcionar na mesma.
+
+Acrescentar **outra** dependência é decisão do grupo, discutida antes, nunca
+resolvida no meio de uma tarefa.
 
 ---
 
@@ -86,6 +101,14 @@ funcionar depois de a seguinte começar.
 apaga a evidência da progressão do trabalho, que é justamente o que a divisão em
 etapas serve para mostrar. Erros encontrados tarde corrigem-se na etapa em curso e
 registam-se na secção "o que mudou face à etapa anterior" do README dessa etapa.
+
+> **Exceção decidida pelo grupo em setembro de 2026.** O Protótipo 1 foi reaberto
+> para receber, na mesma pasta, o PostgreSQL, a replicação entre laptops, a injeção
+> de falhas com sessão de ensaio exclusiva e um frontend web. Não é um erro
+> corrigido tarde: é um alargamento de âmbito pedido depois da entrega. A
+> justificação e o que se perde com isto estão em `SPECS.md` 11.6, e o README do
+> Protótipo 1 tem a secção "o que mudou face à etapa entregue". O estado original
+> continua a poder ver-se em `git show 7b430e6`.
 
 Antes de escrever código para uma etapa, ler a secção correspondente do
 [`ROADMAP.md`](ROADMAP.md).
