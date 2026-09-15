@@ -339,9 +339,15 @@ primeiro.
 
 Três níveis, cada um com o seu mecanismo.
 
-**Entre nós** — resolvido por construção. Só o primário escreve, e é ele que ordena
-as operações ao atribuir o `indice`. Não existe escrita concorrente entre
-servidores.
+**Entre nós** — resolvido por construção, e de maneira diferente em cada etapa.
+
+Nas etapas 2 e 3, só o primário escreve, e é ele que ordena as operações ao
+atribuir o `indice`: não existe escrita concorrente entre servidores.
+
+No Protótipo 1 com dois nós (11.9) existe escrita concorrente entre servidores, e
+quem a resolve é a base que eles partilham — os dois pedem os mesmos *locks* de
+linha, pela mesma ordem, e a sequência `operacao_numero` dá a ordem total. Não há
+primário porque não há nada para coordenar entre eles.
 
 **Entre contas** — *locks* por conta. Um *lock* global serializaria o banco inteiro
 e tornaria RNF-04 impossível; com *locks* por conta, transferências sobre contas
@@ -885,6 +891,54 @@ Isto não é delegar o consenso ao motor, que a proposta proíbe e o ADR-0001 re
 é delegar o *lock* de linha dentro de um nó. A replicação entre nós continua por
 implementar à mão, na etapa seguinte.
 
+### 11.9 Dois nós contra a mesma base, no Protótipo 1
+
+Decidido em setembro de 2026. Os ensaios da disciplina fazem-se com dois
+portáteis a servir ao mesmo tempo, e as contas têm de ser as mesmas nos dois. A
+montagem é: cada portátil corre o seu nó e o seu painel, e os dois escrevem numa
+**única** base PostgreSQL gerida. Está descrita em `prototipo-1/REDE.md`.
+
+**Não custou uma linha de código de domínio, e a razão é o desenho.** O servidor
+não guarda estado entre pedidos: cada pedido abre a sua ligação, e os *locks*
+(`SELECT ... FOR UPDATE`), a chave de deduplicação (`operacao.op_id`) e a ordem
+total (`operacao_numero`) vivem todos na base. Dois processos em máquinas
+diferentes pedem exatamente os mesmos *locks* que dois fios no mesmo processo
+pediriam, e o PostgreSQL serializa-os da mesma maneira. `conexao.py` já aceitava
+uma linha de ligação qualquer em `BANCO_BD`, incluindo uma com `sslmode=require`.
+
+O que se acrescentou foi configuração (`compose.nuvem.yaml`, `.env.exemplo`), um
+guião (`REDE.md`) e, sobretudo, os testes que o demonstram:
+`tests/integracao/teste_dois_nos.py` levanta **dois processos** do servidor, com
+`NO_ID` diferente, contra a mesma base. Dois processos e não dois fios de
+propósito — contra dois fios ainda se poderia objetar que partilham memória.
+
+**Isto não é replicação, e é a parte que não pode ser mal lida na defesa.**
+
+| | Dois nós, uma base (Protótipo 1) | Replicação por log (etapa 2) |
+|---|---|---|
+| Quem garante a correção | Os *locks* de linha do PostgreSQL | O protocolo, escrito à mão |
+| Onde está o dinheiro | Num sítio | Em três, com um log replicado |
+| Se cair uma máquina de servidor | A outra continua a servir | A outra continua a servir |
+| **Se cair a base** | **Cai tudo** | Não há uma base única para cair |
+| RF-09 (eleição), RF-10 (maioria) | **Por cumprir** | Cumpridos |
+
+A base partilhada é um ponto único de falha, e por isso esta montagem **não**
+cobre F-08 nem RF-09 a RF-13. O que cobre, e antes não cobria, é RF-04 no seu
+sentido literal: uma transferência pedida a um servidor mexe em contas que o
+outro servidor também serve.
+
+**Porque é que isto não é delegar o consenso ao motor**, que a proposta proíbe e
+o ADR-0001 recusa: não se delega nada, porque não há consenso nenhum a acontecer.
+Há uma base só, e um *lock* de linha dentro de uma base não é um algoritmo
+distribuído — é o mesmo mecanismo que o Protótipo 1 já usava com um nó. A
+replicação entre bases continua por implementar à mão, na etapa seguinte, tal
+como o ADR-0001 decidiu.
+
+**O que se perde, dito sem rodeios:** o servidor deixa de correr sem uma base
+alcançável pelos dois portáteis, o que na prática significa uma base gerida e
+uma conta num fornecedor. E cada pedido paga uma ligação TLS nova, porque não há
+*pool* — a medição e o critério para acrescentar um estão em `REDE.md`.
+
 ---
 
 ## 12. Fora de âmbito
@@ -926,7 +980,7 @@ implementar à mão, na etapa seguinte.
 | RF-01 | Protótipo 1 | `dominio/contas`, `POST /contas` |
 | RF-02 | Protótipo 1 | `GET /contas/{id}` |
 | RF-03 | Protótipo 1 | `POST /contas/{id}/deposito`, `/saque` |
-| RF-04 | Protótipo 1 | `POST /transferencias` |
+| RF-04 | Protótipo 1 | `POST /transferencias`; entre servidores diferentes com a montagem de 11.9 |
 | RF-05 | Protótipo 1 | Débito e crédito numa só transação (4.4, secção 5) |
 | RF-06 | Protótipo 1 | Validação antes de gravar (secção 5) |
 | RF-07 | Protótipo 1 | Isolamento da transação (secção 5) |
