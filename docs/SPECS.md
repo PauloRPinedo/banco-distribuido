@@ -982,6 +982,53 @@ reescrita que esta decisão evita — e porque a injeção de falhas é, de qual
 maneira, *como* se demonstra o failover. Fica dito no README da etapa em vez de
 escondido.
 
+### 11.11 Tipos próprios no painel do Protótipo 1
+
+Decidido em setembro de 2026. `CODESTYLE.md` 8.2 fixa `system-ui, -apple-system,
+"Segoe UI", Roboto` e diz **"tipo de letra do sistema, sem descarregar nada"**. O
+painel do Protótipo 1 passa a usar dois tipos próprios:
+
+| Papel | Tipo | Licença |
+|---|---|---|
+| Display e dinheiro | **Fraunces** (variável: `opsz`, `wght`) | SIL OFL 1.1 |
+| Corpo, rótulos, tabelas | **Instrument Sans** (variável: `wght`) | SIL OFL 1.1 |
+
+**Porquê.** O painel parecia um painel de administração qualquer, e num trabalho
+sobre um banco isso é um desperdício: a interface é o que o avaliador vê
+primeiro. A tipografia é a alavanca com melhor relação entre esforço e resultado
+— mais do que cor, que aqui está fixada em 8.1 e não se mexe.
+
+A direção é **extrato impresso**, e não é invenção: 8.4 já dizia que "cada nó é
+um cartão de extrato, não um ponto colorido". A Fraunces tem eixo óptico, o que
+deixa o total a 72 px sair com traços finos em vez de engordado — que é
+exatamente o que 8.2 pede ao mandar peso 300 nesse tamanho.
+
+**O que se perde, dito sem rodeios:**
+
+- A promessa de "não descarrega nada" deixa de valer para este painel. São
+  196 KB de `.woff2` dentro do repositório, em `prototipo-1/frontend/public/tipos/`.
+- Há mais um sítio onde a página pode ficar feia se algo correr mal: sem os
+  ficheiros, cai para Georgia e para o tipo do sistema, que é aceitável mas não
+  é o desenho.
+
+**O que não se perde:**
+
+- **Nada vem de um CDN.** Os tipos são auto-alojados, porque o painel é servido
+  por nginx dentro de um contentor e tem de funcionar sem internet. Um pedido a
+  `fonts.gstatic.com` a meio da demonstração seria uma dependência de rede a
+  descobrir na pior altura.
+- **Não é uma dependência de npm.** São ficheiros, não pacotes: `CONVENÇÕES` 4
+  continua com as mesmas quatro dependências.
+- As licenças OFL vão dentro da pasta, ao lado dos ficheiros. Redistribuir um
+  tipo sem o texto da licença é um problema, não um detalhe.
+
+**A paleta de 8.1 não se toca.** Está raciocinada, tem os rácios de contraste
+escritos, e a recusa do roxo da referência é deliberada. Um desvio à linha
+gráfica chega; dois começariam a dizer que a linha gráfica não manda.
+
+O painel do Protótipo 2 continua em tipos do sistema: é um ficheiro HTML sem
+passo de compilação, servido pelo próprio nó, e 8.2 aplica-se-lhe tal e qual.
+
 ---
 
 ## 12. Fora de âmbito
