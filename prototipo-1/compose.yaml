@@ -43,13 +43,24 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      # É para isto que existe /saude. A imagem não tem curl, mas tem Python.
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8001/saude')"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
 
   frontend:
     build: ./frontend
     ports:
       - "8080:80"
     depends_on:
-      - banco
+      # Esperar pelo healthcheck, e não só pelo arranque: sem isto o painel
+      # responde 502 nos primeiros segundos, que é exatamente quando alguém
+      # está a olhar para ele numa demonstração.
+      banco:
+        condition: service_healthy
 
 volumes:
   dados-postgres:
