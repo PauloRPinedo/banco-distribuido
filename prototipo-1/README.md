@@ -36,6 +36,12 @@ docker compose up --build
 
 Painel em <http://localhost:8080>, API em <http://localhost:8001>.
 
+O painel é composto como um **extrato impresso**, e não como um painel de
+administração: o documento ocupa a coluna larga, os controlos vivem num raio
+estreito ao lado, e o dinheiro é tipografado para se ler do fundo da sala. Usa
+dois tipos próprios, auto-alojados — um desvio a `CODESTYLE.md` 8.2 que está
+registado em [`SPECS.md`](../docs/SPECS.md) 11.11.
+
 ### Dois portáteis, contra a mesma base
 
 ```bash
@@ -251,7 +257,7 @@ a etapa 2 sempre devia ter estado — ver `docs/SPECS.md` 11.10.
 |---|---|
 | `banco/` | 1 243 linhas em 23 ficheiros |
 | `tests/` | 1 458 linhas, 111 testes |
-| `frontend/src/` | 623 linhas |
+| `frontend/src/` | 1277 linhas |
 | Suite completa | ~21 s |
 | Módulo maior | `dominio/operacoes.py`, 230 linhas |
 

@@ -254,6 +254,11 @@ font-variant-numeric: tabular-nums;
 
 Tipo de letra do sistema, sem descarregar nada.
 
+> **Exceção:** o painel do Protótipo 1 usa dois tipos próprios, auto-alojados.
+> O que se ganha e o que se perde está em [`SPECS.md`](SPECS.md) 11.11. O painel
+> do Protótipo 2, que é um HTML servido pelo próprio nó, continua a cumprir esta
+> regra tal e qual.
+
 `tabular-nums` em **todos** os números, sem exceção. A página atualiza a cada
 segundo; sem largura fixa de dígito, o total treme a cada refrescamento e a
 quietude — que é o ponto — desfaz-se.

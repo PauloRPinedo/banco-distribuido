@@ -17,8 +17,8 @@ export default function App() {
   const [aberto, definirAberto] = useState("contas");
   const [no, definirNo] = useState(null);
 
-  // Os dois portáteis servem painéis idênticos contra a mesma base. Sem isto,
-  // a meio da demonstração ninguém sabe qual dos ecrãs é qual.
+  // Dois nós contra a mesma base servem painéis idênticos. Sem isto, a meio da
+  // demonstração ninguém sabe qual dos ecrãs é qual.
   useEffect(() => {
     api.saude().then((estado) => definirNo(estado.no)).catch(() => definirNo(null));
   }, []);
@@ -27,11 +27,14 @@ export default function App() {
 
   return (
     <div className="pagina">
+      {/* Cabeçalho de papel timbrado: quem emite à esquerda, quem atendeu à
+          direita, e um fio duplo a fechar. */}
       <header className="cabecalho">
-        <h1>Banco distribuído</h1>
-        <p className="legenda">
-          Protótipo 1{no ? ` · nó ${no}` : ""}
-        </p>
+        <div>
+          <h1>Banco distribuído</h1>
+          <p className="legenda">Protótipo 1 · extrato de contas</p>
+        </div>
+        {no && <span className="selo-do-no">atendido pelo nó {no}</span>}
       </header>
 
       <nav className="separadores">
@@ -40,6 +43,7 @@ export default function App() {
             key={id}
             type="button"
             className={id === aberto ? "separador aberto" : "separador"}
+            aria-current={id === aberto ? "page" : undefined}
             onClick={() => definirAberto(id)}
           >
             {titulo}
@@ -48,8 +52,18 @@ export default function App() {
       </nav>
 
       <main>
-        <Painel />
+        {/* A chave remonta o ecrã ao trocar de separador, e é isso que faz a
+            entrada escalonada acontecer de cada vez. */}
+        <Painel key={aberto} />
       </main>
+
+      <footer className="rodape">
+        <p>Trabalho de Computação Distribuída · ICMC-USP, campus São Carlos</p>
+        <p>
+          Jefferson Daniel Flores Montenegro · Cristhian Jesus Maylle Briceño ·
+          Paulo Sebastian Rojo Pinedo
+        </p>
+      </footer>
     </div>
   );
 }
