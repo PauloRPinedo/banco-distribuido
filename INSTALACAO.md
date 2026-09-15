@@ -21,7 +21,6 @@ Como pôr este repositório a correr, de raiz, numa máquina limpa.
 | Para | Precisa de |
 |---|---|
 | Correr os testes do domínio | **Python 3.10+**, e mais nada |
-| Correr o Protótipo 2 inteiro | **Python 3.10+**, e mais nada |
 | Correr o Protótipo 1 inteiro | **Docker** (traz o Python, o PostgreSQL e o Node lá dentro) |
 | Mexer no painel do Protótipo 1 | **Node 20+** e `npm` |
 
