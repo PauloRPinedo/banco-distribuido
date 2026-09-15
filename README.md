@@ -71,6 +71,7 @@ o trabalho foi repartido entre os três.
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | O que se faz em cada etapa e subfase, e quem faz |
 | [`docs/CODESTYLE.md`](docs/CODESTYLE.md) | Estilo do código, do CLI e do painel |
 | [`docs/CONVENCOES.md`](docs/CONVENCOES.md) | Convenções de trabalho no repositório |
+| [`INSTALACAO.md`](INSTALACAO.md) | Pôr tudo a correr de raiz, etapa a etapa, e o que fazer quando não arranca |
 
 ---
 
