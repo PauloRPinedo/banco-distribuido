@@ -1,8 +1,14 @@
 # Mapa de módulos
 
-Basado en la estructura real de `prototipo-1/banco/` (4 paquetes:
-`dominio`, `persistencia`, `cluster`, `interface`), adaptada a la nueva pila
-(PostgreSQL + FastAPI + frontend separado).
+Basado en la estructura que tenía `prototipo-1/banco/` **cuando se entregó la
+etapa 1** (4 paquetes: `dominio`, `persistencia`, `cluster`, `interface`),
+adaptada a la nueva pila (PostgreSQL + FastAPI + frontend separado).
+
+> `prototipo-1/` ya no tiene esa estructura: fue reconstruido sobre esta misma
+> pila y hoy usa `dominio`, `repositorio`, `servico`, `api` — es decir, la de la
+> columna izquierda de abajo, sin `cluster`, sin `integraciones` y sin
+> `autenticacion`. Ver `docs/SPECS.md` 11.8. La columna "paquete origen" se lee
+> como historia, no como el estado de esa carpeta hoy.
 
 | Módulo | Paquete origen (Prototipo 1) | Responsabilidad | Cambia con el nuevo stack |
 |---|---|---|---|
@@ -12,7 +18,7 @@ Basado en la estructura real de `prototipo-1/banco/` (4 paquetes:
 | `integraciones` | — (no existía) | Adaptador hacia sistemas externos para `TRANSFERENCIA_EXTERNA` (RF-25) | Nuevo — en esta etapa es un *stub* simulado (latencia y fallas aleatorias), no un cliente real |
 | `autenticacion` | — (no existía) | Hash de contraseña y firma/verificación de token de sesión con llave simétrica (RF-26) | Nuevo — no depende de `cluster` ni `repositorio` de operaciones, solo de `RepositorioUsuarios` |
 | `api` | `banco/interface/` (servidor HTTP) | Rutas HTTP, validación de forma, traducción de errores | Pasa de `http.server` a FastAPI |
-| `cli` | `banco/cli.py` | Cliente de línea de comandos | Se mantiene como alternativa al frontend web (RF-17) |
+| `cli` | `banco/cli.py` | Cliente de línea de comandos | **No se mantiene.** Ni esta etapa ni el Prototipo 1 reconstruido tienen CLI, así que F-12 y RF-17 quedan sin cubrir — ver `docs/SPECS.md` 11.8 |
 | `frontend` | — (no existía) | Interfaz web para cliente y administrador | Nuevo — ver [`../02-casos-de-uso/`](../02-casos-de-uso/) |
 | `balanceador` | — (no existía) | Enruta cada pedido al primario vigente (o a cualquier nodo si es lectura); sigue `409 nao_sou_primario` | Nuevo — servicio propio y separado, sin estado propio, no forma parte de ningún nodo (ver [`../03-arquitectura/diagrama-de-componentes.md`](../03-arquitectura/diagrama-de-componentes.md)) |
 

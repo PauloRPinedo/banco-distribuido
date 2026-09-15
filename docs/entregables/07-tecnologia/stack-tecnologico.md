@@ -24,7 +24,7 @@ resumen y lo que sigue pendiente.
 | Empaquetado | Docker (backend, y balanceador con una imagen aparte para Lambda); `docker-compose.yml` para levantar todo en local | Decidido |
 | Integración/despliegue continuo | GitHub Actions: pruebas + build de imágenes en cada `push` a `main`; despliegue por SSH a los nodos, `aws lambda update-function-code` para el balanceador, Vercel despliega el frontend por su cuenta | Decidido — ver `GUIA-DESPLIEGUE.md` en `projeto-final/` |
 | Comunicación cliente↔backend | HTTPS + JSON | Decidido |
-| Pruebas | `unittest` (heredado de Prototipo 1) o `pytest` si se agrega como dependencia formal | **Pendiente de confirmar** |
+| Pruebas | `unittest` de la biblioteca estándar | Decidido — `pytest` sería un `pip install` más en cada laptop, y quien lo tenga instalado corre estos archivos sin cambiarlos |
 | Control de versiones | Git / GitHub (ya en uso) | Decidido |
 
 ## Lo que cambia respecto a Prototipo 1
@@ -33,7 +33,7 @@ resumen y lo que sigue pendiente.
 |---|---|
 | `http.server` de la biblioteca estándar | FastAPI (recomendado) |
 | WAL en archivo JSONL | Tablas PostgreSQL (ver [`../05-modelo-de-datos/modelo-fisico.md`](../05-modelo-de-datos/modelo-fisico.md)) |
-| Sin frontend, solo CLI | Frontend web + CLI (RF-17 cubre ambos) |
+| Sin frontend, solo CLI | Frontend web, y **ningún CLI**: F-12 y RF-17 quedan sin cubrir (`docs/SPECS.md` 11.8) |
 | Sin dependencias externas (`CONVENCOES.md`) | Se abandona esa regla a partir de esta etapa — ver la consecuencia anotada en `ADR-0002-...md` |
 
 ## Pendiente de decisión
