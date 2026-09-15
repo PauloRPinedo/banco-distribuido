@@ -5,8 +5,8 @@ import Auditoria from "./paginas/Auditoria.jsx";
 import Contas from "./paginas/Contas.jsx";
 import Transferir from "./paginas/Transferir.jsx";
 
-// Sem router e sem barra lateral: CODESTYLE 7.4 diz que é um ecrã só, e não
-// há mesmo para onde ir. Três separadores chegam, e poupam uma dependência.
+// Sem router e sem barra lateral: é um ecrã só, e não há mesmo para onde ir.
+// Três separadores chegam, e poupam uma dependência.
 const SEPARADORES = [
   { id: "contas", titulo: "Contas", Painel: Contas },
   { id: "transferir", titulo: "Transferir", Painel: Transferir },

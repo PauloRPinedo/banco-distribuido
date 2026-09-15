@@ -16,7 +16,7 @@ from banco.dominio.erros import ErroDoBanco, ValorInvalido
 
 
 async def erro_do_banco(pedido: Request, erro: ErroDoBanco) -> JSONResponse:
-    """A forma de erro de SPECS 6: `{"erro": ..., "mensagem": ...}`, sem envelope."""
+    """A forma de erro do banco: `{"erro": ..., "mensagem": ...}`, sem envelope."""
     return JSONResponse(status_code=erro.estado_http, content=erro.para_json())
 
 
@@ -24,7 +24,7 @@ async def corpo_invalido(pedido: Request, erro: Exception) -> JSONResponse:
     """Um corpo que o modelo recusa é `valor_invalido`, não o 422 do FastAPI.
 
     O 422 traz o formato de erro do framework, com uma lista de `loc`/`msg` que
-    não é a de SPECS 6. Traduzir aqui mantém uma só forma de erro em toda a
+    não é a do banco. Traduzir aqui mantém uma só forma de erro em toda a
     API — que é o que permite ao cliente ter um só caminho de tratamento.
     """
     campos = ", ".join(

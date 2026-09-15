@@ -1,8 +1,7 @@
 """O log em JSONL: append-only, uma entrada por linha.
 
 Foi o armazém principal do Protótipo 1 até setembro de 2026, quando o PostgreSQL
-o substituiu (docs/SPECS.md 11.4). Continua aqui por duas razões concretas, e não
-por nostalgia:
+o substituiu. Continua aqui por duas razões concretas, e não por nostalgia:
 
 - **é a saída de emergência da demonstração** — `--armazem ficheiro` faz o cluster
   funcionar num laptop onde o PostgreSQL não arranque;
@@ -41,7 +40,7 @@ class ArmazemEmFicheiro:
         self.caminho.touch(exist_ok=True)
         # O log inteiro fica em memória depois do arranque. É a mesma escolha do
         # armazém em PostgreSQL, e o que torna `epoch_em` e `indice_de` baratos:
-        # SPECS 7 chama-os uma vez por replicação, e reler o ficheiro de cada vez
+        # a replicação chama-os uma vez por ronda, e reler o ficheiro de cada vez
         # seria quadrático no tamanho do log.
         self._entradas = self._ler_do_disco()
         self._ficheiro = open(self.caminho, "a", encoding="utf-8")

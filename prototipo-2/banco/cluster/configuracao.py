@@ -1,4 +1,4 @@
-"""O ficheiro do cluster, lido e validado (docs/SPECS.md secção 9).
+"""O ficheiro do cluster, lido e validado.
 
 Valida à entrada, e não no ponto de uso, por uma razão prática: um `heartbeat_ms`
 demasiado próximo do *timeout* de eleição não dá erro nenhum — dá um cluster que
@@ -7,8 +7,7 @@ linhas apanhá-lo aqui e custa uma tarde apanhá-lo na demonstração.
 
 A semente é derivada por nó, e isso não é um detalhe: com a mesma semente nos
 três, todos sorteiam o mesmo *timeout*, candidatam-se ao mesmo tempo, dividem os
-votos e a eleição nunca converge. O ROADMAP chama-lhe o erro mais caro desta
-etapa.
+votos e a eleição nunca converge. É o erro mais caro desta etapa.
 """
 
 import json
@@ -49,8 +48,8 @@ class ConfiguracaoDoCluster:
     def maioria(self) -> int:
         """Metade mais um. Com 3 nós são 2; com 2 nós são 2.
 
-        Com 2 nós a maioria continua a ser 2, e é por isso que o SPECS insiste em
-        correr 3 nós mesmo com 2 laptops: a queda de um deixaria o outro sem
+        Com 2 nós a maioria continua a ser 2, e é por isso que se correm
+        3 nós mesmo com 2 laptops: a queda de um deixaria o outro sem
         maioria, em somente leitura, e não haveria failover para demonstrar.
         """
         return len(self.nos) // 2 + 1

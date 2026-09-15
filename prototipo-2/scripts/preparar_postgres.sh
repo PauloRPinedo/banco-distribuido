@@ -5,7 +5,7 @@
 #   ./scripts/preparar_postgres.sh            # bases banco_a, banco_b, banco_c
 #   ./scripts/preparar_postgres.sh a b        # só as do laptop 1
 #
-# Cada nó precisa da **sua** base (docs/SPECS.md 4.3): com dois nós na mesma, o
+# Cada nó precisa da **sua** base: com dois nós na mesma, o
 # arranque do segundo é recusado de propósito.
 set -euo pipefail
 

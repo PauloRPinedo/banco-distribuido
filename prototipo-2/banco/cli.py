@@ -4,7 +4,7 @@
     python3 -m banco.cli transferir alice bob 25.00
     python3 -m banco.cli auditoria
 
-Códigos de saída, conforme a secção 9.5 de docs/CODESTYLE.md:
+Códigos de saída:
 
     0  correu bem
     1  o banco recusou por regra (saldo insuficiente, conta inexistente)

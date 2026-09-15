@@ -1,4 +1,4 @@
-"""Rotas de administração: injeção de falhas e sessão de ensaio (secção 6.3).
+"""Rotas de administração: injeção de falhas e sessão de ensaio.
 
 Separadas das outras porque a audiência é outra vez diferente: aqui quem chama é
 um operador a preparar uma experiência, não um cliente nem um nó.

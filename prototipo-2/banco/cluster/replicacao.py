@@ -1,10 +1,10 @@
-"""Replicação, heartbeat e condução da eleição (docs/SPECS.md 7 e 8).
+"""Replicação, heartbeat e condução da eleição.
 
 Este módulo é o lado **ativo** do protocolo: o que fala com os outros nós. O lado
 passivo — o que responde — está em `interface/rotas_internas`, e o estado vive no
 `LogDeReplicacao` e na `Eleicao`.
 
-Um único RPC serve de replicação e de heartbeat, como manda a secção 7. Não é
+Um único RPC serve de replicação e de heartbeat. Não é
 economia: um segundo caminho de código para o heartbeat divergiria do primeiro, e
 o dia em que divergisse seria o dia em que o `epoch` ou o `commit_lider` chegariam
 errados a uma réplica, sem ninguém dar por isso.
@@ -31,7 +31,7 @@ class Replicador:
         self.log = log
         self.eleicao = eleicao
         # Chamada quando este nó ganha uma eleição, para gravar a `noop` do
-        # próprio epoch (SPECS 8.4). O `No` fornece-a; este módulo não sabe o que
+        # próprio epoch. O `No` fornece-a; este módulo não sabe o que
         # é uma operação.
         self._ao_assumir = ao_assumir
         # Sem injetor, o nó fala com toda a gente: é o caso normal, e é o que os
@@ -77,7 +77,7 @@ class Replicador:
         return self._difundir([entrada], prazo_ms)
 
     def bater_coracao(self) -> None:
-        """Um heartbeat é o mesmo RPC sem entradas (SPECS 7)."""
+        """Um heartbeat é o mesmo RPC sem entradas."""
         self._difundir([], self.configuracao.timeout_replicacao_ms)
 
     def _difundir(self, entradas: list[EntradaDeLog], prazo_ms: int) -> bool:
@@ -132,13 +132,13 @@ class Replicador:
         if not resposta.respondeu or not resposta.corpo:
             return False
         if resposta.corpo.get("epoch", 0) > self.eleicao.epoch:
-            # Fencing: vi um epoch maior, já não mando (SPECS 8.3).
+            # Fencing: vi um epoch maior, já não mando.
             self.eleicao.ver_epoch(resposta.corpo["epoch"])
             return False
         if resposta.corpo.get("ok"):
             return True
         # Log divergente ou com um buraco: a réplica diz onde está, e reenvia-se
-        # daí. É a simplificação face ao Raft registada na secção 7.
+        # daí. É a simplificação face ao Raft.
         em_falta = resposta.corpo.get("meu_ultimo_indice")
         if em_falta is None:
             return False
@@ -164,7 +164,7 @@ class Replicador:
         """Falei com a maioria há menos de um timeout de eleição?
 
         Se não, o primário passa a somente leitura de imediato, em vez de
-        acumular operações que nunca serão confirmadas (SPECS 7).
+        acumular operações que nunca serão confirmadas.
         """
         if not self._pares:
             return True
@@ -216,7 +216,7 @@ class Replicador:
             self._ultimo_contacto_com_maioria = time.monotonic()
             if self._ao_assumir is not None:
                 self._ao_assumir()
-            # Heartbeat imediato, para calar candidatos concorrentes (SPECS 8.4).
+            # Heartbeat imediato, para calar candidatos concorrentes.
             self.bater_coracao()
 
     def _pedir_voto(self, par, corpo: dict, prazo_ms: int) -> bool:

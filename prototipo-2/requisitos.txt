@@ -1,5 +1,6 @@
 # A única dependência externa do projeto, decidida pelo grupo em setembro de 2026.
-# A justificação está em docs/SPECS.md 11.4 e em docs/CONVENCOES.md secção 4.
+# O armazém do log passou a ser uma base de dados; o `--armazem ficheiro`
+# dispensa-a por completo, e é por isso que continua a haver uma só.
 #
 #   pip install -r requisitos.txt
 #

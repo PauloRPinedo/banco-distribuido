@@ -83,7 +83,7 @@ class TesteTranca(unittest.TestCase):
         self.assertGreater(self.tranca.expira_em, antes)
 
     def teste_a_mensagem_diz_o_dono_e_quanto_falta(self):
-        """A terceira linha do erro tem de ser acionável (CODESTYLE 9.4)."""
+        """A terceira linha do erro tem de ser acionável."""
         self.tranca.tomar("cristhian", duracao_s=180)
 
         with self.assertRaises(EnsaioTomado) as capturado:

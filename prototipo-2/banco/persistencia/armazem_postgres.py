@@ -1,9 +1,8 @@
-"""O armazém principal: o log numa base PostgreSQL (docs/SPECS.md 4.3).
+"""O armazém principal: o log numa base PostgreSQL.
 
 Este é o **único** módulo do projeto que conhece o `psycopg`, e importa-o dentro
-do construtor, não no topo. É o que mantém verdadeira a promessa da secção 4 de
-docs/CONVENCOES.md: a suíte de testes corre numa máquina onde não há nada
-instalado.
+do construtor, não no topo. É o que mantém verdadeira a promessa de que a suíte
+de testes corre numa máquina onde não há nada instalado.
 
 Duas escolhas que valem a pena defender:
 
@@ -15,8 +14,8 @@ do nó já serializa. Uma ligação por nó também tira da mesa a pergunta do
 
 **`synchronous_commit = on` com `autocommit`.** Um `INSERT` é uma transação, e o
 `COMMIT` só devolve depois de o registo estar em disco. É a equivalência exata do
-`write` + `flush` + `os.fsync` do armazém em ficheiro, e é o que faz o passo 4 da
-secção 5 do SPECS continuar a significar o mesmo.
+`write` + `flush` + `os.fsync` do armazém em ficheiro, e é o que faz o passo 4
+de uma escrita continuar a significar o mesmo.
 """
 
 import json
@@ -92,7 +91,7 @@ class ArmazemPostgres:
 
         É o que faz uma réplica atrasada pôr-se em dia depressa. Também é
         tudo-ou-nada, o que importa: meio lote aplicado deixaria o log com um
-        buraco que a correspondência de índices da secção 7 não sabe reparar.
+        buraco que a correspondência de índices da replicação não sabe reparar.
         """
         if not entradas:
             return
@@ -197,7 +196,7 @@ class ArmazemPostgres:
         """Marca esta base como sendo deste nó, e recusa-a se for de outro.
 
         Dois nós com o mesmo DSN partilhariam log sem dar sinal: os índices
-        chocariam, a correspondência da secção 7 falharia, e o sintoma pareceria
+        chocariam, a correspondência de índices falharia, e o sintoma pareceria
         um erro de eleição. Uma linha de SQL evita horas a procurar no protocolo.
         """
         # Ler **antes** de escrever. Inserir primeiro e verificar depois deixa a

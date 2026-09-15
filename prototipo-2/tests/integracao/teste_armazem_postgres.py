@@ -5,8 +5,8 @@ esta implementação. Aqui ficam as garantias que só existem por haver uma base
 recusa de duas instâncias na mesma base, a durabilidade declarada, e a
 deduplicação garantida pelo índice único.
 
-Saltam-se sozinhos sem `BANCO_BD_TESTE`, com o motivo escrito — o ROADMAP 3.5
-proíbe testes pendentes sem explicação.
+Saltam-se sozinhos sem `BANCO_BD_TESTE`, com o motivo escrito: um teste
+pendente sem explicação não diz nada a quem o lê.
 """
 
 import os

@@ -1,4 +1,4 @@
-"""As rotas de cliente da secção 6.1 de docs/SPECS.md.
+"""As rotas de cliente.
 
 Cada rota é uma função pura sobre o nó: recebe um `Pedido` e devolve um
 dicionário. Não sabe de HTTP — quem traduz estados e erros é `servidor_http`,
@@ -36,7 +36,7 @@ def _valor(corpo: dict, campo: str = "valor") -> int:
 
     Recusar um número JSON é deliberado: `json.loads` devolveria um float, e um
     float em dinheiro é a origem do desvio de arredondamento que RNF-01 proíbe.
-    Exigir texto mantém a conversão a acontecer num sítio só (SPECS 3.1).
+    Exigir texto mantém a conversão a acontecer num sítio só.
     """
     bruto = corpo.get(campo)
     if not isinstance(bruto, str):

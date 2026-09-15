@@ -186,7 +186,7 @@ function relatar(erro, formulario) {
     }
     // Três linhas: o que aconteceu, com os números concretos, e o passo
     // seguinte. Um erro que não diz o passo seguinte deixa quem o lê onde
-    // estava (CODESTYLE 9.4).
+    // estava.
     mostrarAviso(erro.codigo.replace(/_/g, " "), erro.message,
                  PASSOS[erro.codigo] || "veja o estado no ecrã «Cluster»");
     return;

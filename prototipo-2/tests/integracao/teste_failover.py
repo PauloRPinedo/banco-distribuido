@@ -46,7 +46,7 @@ class TesteFailover(BaseComCluster):
         self.assertNotEqual(novo.id, antigo.id)
 
     def teste_o_epoch_sobe_no_failover(self):
-        """Cada mandato tem o seu número, e ele só cresce (SPECS 8.3)."""
+        """Cada mandato tem o seu número, e ele só cresce."""
         epoch_antigo = self.primario.estado_do_no()["epoch"]
         self.cluster.derrubar(self.primario)
 
@@ -74,7 +74,7 @@ class TesteFailover(BaseComCluster):
         self.assertEqual(novo.saldo("bob")["saldo_centavos"], 2500)
 
     def teste_o_novo_primario_tem_tudo_o_que_estava_confirmado(self):
-        """A condição 3 do voto em ação (SPECS 8.2).
+        """A condição 3 do voto em ação.
 
         Duas maiorias intersectam-se; o nó comum só vota em quem tem o log ao
         menos tão atualizado quanto o dele. Logo o vencedor tem tudo o que foi

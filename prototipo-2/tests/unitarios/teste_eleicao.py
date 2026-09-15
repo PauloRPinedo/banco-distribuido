@@ -1,7 +1,7 @@
 """A máquina de estados da eleição, sem rede nenhuma (subfases 2.4 e 2.5).
 
-Testa-se em memória e sem sockets de propósito: as garantias da secção 8 do SPECS
-são sobre **decisões**, não sobre transporte. Um teste que precise de três
+Testa-se em memória e sem sockets de propósito: as garantias da eleição são
+sobre **decisões**, não sobre transporte. Um teste que precise de três
 servidores para provar que ninguém vota duas vezes está a testar a coisa errada.
 """
 
@@ -21,7 +21,7 @@ def eleicao(id_do_no="A", semente=42, epoch=1, votou_em=None):
 class TestePapelInicial(unittest.TestCase):
 
     def teste_arranca_sempre_como_replica(self):
-        """SPECS 4.2: quem manda decide-se por eleição, nunca pela memória."""
+        """Quem manda decide-se por eleição, nunca pela memória."""
         self.assertEqual(eleicao().papel, REPLICA)
 
     def teste_lembra_se_do_epoch_gravado(self):
@@ -35,7 +35,7 @@ class TestePapelInicial(unittest.TestCase):
 class TesteSementeDerivada(unittest.TestCase):
 
     def teste_nos_diferentes_sorteiam_timeouts_diferentes(self):
-        """O erro mais caro da etapa, segundo o ROADMAP.
+        """O erro mais caro da etapa.
 
         Com a mesma semente nos três, todos se candidatam ao mesmo tempo,
         dividem os votos, e a eleição nunca converge — com um sintoma que parece
@@ -105,7 +105,7 @@ class TesteCandidatura(unittest.TestCase):
 class TesteFencing(unittest.TestCase):
 
     def teste_epoch_maior_despromove_o_primario(self):
-        """SPECS 8.3: um primário antigo que volta descobre aqui que já não manda."""
+        """Um primário antigo que volta descobre aqui que já não manda."""
         eleitor = eleicao()
         eleitor.candidatar(0, 0)
         eleitor.assumir(2)
@@ -201,7 +201,7 @@ class TesteVoto(unittest.TestCase):
         self.assertTrue(concedido)
 
     def teste_o_motivo_da_recusa_e_sempre_dito(self):
-        """CODESTYLE secção 10: sem o motivo, depurar uma eleição é adivinhar."""
+        """Sem o motivo, depurar uma eleição é adivinhar."""
         eleitor = eleicao(epoch=9)
 
         _, motivo = eleitor.conceder_voto(PedidoDeVoto(2, "B", 5, 1), 5, 1)

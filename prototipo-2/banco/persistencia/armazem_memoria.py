@@ -1,8 +1,8 @@
 """O armazém dos testes: listas e dicionários, sem disco nem base de dados.
 
 Existe para que `python3 -m unittest discover -s tests` continue a correr numa
-máquina onde não há PostgreSQL instalado — que é a promessa que sobrou depois de
-o servidor passar a exigir uma base (docs/CONVENCOES.md, secção 4).
+máquina onde não há PostgreSQL instalado — que é a promessa que sobrou depois
+de o servidor passar a exigir uma base.
 
 **`fechar()` não apaga nada**, e é de propósito: um teste de recuperação
 constrói um `No` novo sobre a mesma instância de armazém, e é isso que faz

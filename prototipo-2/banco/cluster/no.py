@@ -2,10 +2,10 @@
 
 Um `No` sem configuração de cluster é um banco de um nó só: aceita escritas
 sempre, não tem papel nem eleição, e é o que os testes de domínio usam. Com
-configuração, arranca **sempre como réplica** (docs/SPECS.md 4.2) e só escreve
-depois de ganhar uma eleição.
+configuração, arranca **sempre como réplica** e só escreve depois de ganhar
+uma eleição.
 
-A ordem dos passos de uma escrita é a da secção 5 do SPECS e não pode mudar.
+A ordem dos passos de uma escrita não pode mudar.
 
 **Ordem dos locks.** Há dois, e a regra é: nunca tomar `_lock_estado` tendo o lock
 da eleição; o contrário pode. Existem separados por uma razão de correção — um
@@ -80,7 +80,7 @@ class No(LadoDoProtocolo):
     # ---------------------------------------------------------------- escrita
 
     def executar(self, op_id: str, operacao: Operacao) -> dict:
-        """A ordem obrigatória de uma escrita (SPECS secção 5)."""
+        """A ordem obrigatória de uma escrita."""
         self._exigir_que_mando()
 
         guardada = self._resposta_guardada(op_id)
@@ -124,7 +124,7 @@ class No(LadoDoProtocolo):
                 f"({self._prazo_ms()} ms); a entrada {entrada.indice} ficou "
                 f"gravada por confirmar")
 
-        # Fencing (SPECS 8.3): durante a espera pode ter chegado um epoch maior
+        # Fencing: durante a espera pode ter chegado um epoch maior
         # e este nó já não manda. Aplicar aqui criaria uma operação confirmada
         # por alguém que deixou de ser primário a meio.
         if not self.eleicao.sou_primario():

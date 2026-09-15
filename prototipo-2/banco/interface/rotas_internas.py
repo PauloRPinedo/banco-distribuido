@@ -1,4 +1,4 @@
-"""As rotas entre servidores da secção 6.2 de docs/SPECS.md.
+"""As rotas entre servidores.
 
 Separadas das de cliente porque a audiência é outra: aqui quem chama é um nó, e
 as respostas são de protocolo, não de banco. Um cliente nunca devia precisar
@@ -28,7 +28,7 @@ def estado(no: No, _pedido: Pedido) -> tuple[int, dict]:
 
     Serve duas audiências: os outros nós, para saberem quem manda, e quem prepara
     a demonstração e quer confirmar com `curl` que a porta está aberta antes de
-    subir o cluster (SPECS secção 9).
+    subir o cluster.
     """
     return 200, no.estado_do_no()
 
@@ -46,7 +46,7 @@ def cluster(no: No, _pedido: Pedido) -> tuple[int, dict]:
 
 
 def replicar(no: No, pedido: Pedido) -> tuple[int, dict]:
-    """Replicação e heartbeat no mesmo RPC (SPECS 7).
+    """Replicação e heartbeat no mesmo RPC.
 
     Com `entradas` vazio é um heartbeat. Reaproveitar o RPC garante que o
     heartbeat carrega sempre o `epoch` e o `commit_lider` certos — um segundo
@@ -67,7 +67,7 @@ def replicar(no: No, pedido: Pedido) -> tuple[int, dict]:
 
 
 def votar(no: No, pedido: Pedido) -> tuple[int, dict]:
-    """Pedido de voto, com as três condições da secção 8.2."""
+    """Pedido de voto, com as três condições do voto."""
     corpo = pedido.corpo
     return 200, no.votar(PedidoDeVoto(
         epoch=int(corpo.get("epoch", 0)),

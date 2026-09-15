@@ -1,8 +1,8 @@
 // As contas que já se abriu ou consultou **neste navegador**.
 //
-// É uma conveniência, e não uma fonte de verdade: SPECS 6.1 não tem rota para
-// listar contas, e inventar uma aqui seria pôr a interface a decidir o que a
-// especificação não decidiu. Serve só para não ter de escrever "alice" de
+// É uma conveniência, e não uma fonte de verdade: a API não tem rota para
+// listar contas, e inventar uma aqui seria pôr a interface a decidir o que o
+// banco não decidiu. Serve só para não ter de escrever "alice" de
 // memória a meio de uma demonstração.
 //
 // Mora no navegador de quem está a olhar. Outro portátil não a vê, e é isso

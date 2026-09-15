@@ -6,8 +6,8 @@ import { guardarContaVista } from "../contas-vistas.js";
 // RF-04 e RF-05: ou as duas contas mudam, ou nenhuma muda.
 //
 // O ecrã mostra a direção do dinheiro em vez de a deixar implícita em dois
-// campos de texto empilhados, e o sucesso ganha carimbo — o verde de
-// CODESTYLE 8.1 existe só para isto e até agora estava por usar.
+// campos de texto empilhados, e o sucesso ganha carimbo — o verde da paleta
+// existe só para isto e até agora estava por usar.
 export default function Transferir() {
   const [de, definirDe] = useState("");
   const [para, definirPara] = useState("");

@@ -1,8 +1,8 @@
 """Escolhe o armazém a partir do nome, e é o único sítio que conhece o psycopg.
 
 O `import psycopg` está **dentro** da função, não no topo do módulo. Não é
-manha: é o que mantém verdadeira a promessa da secção 4 de docs/CONVENCOES.md de
-que a suíte de testes corre numa máquina sem nada instalado. A consequência
+manha: é o que mantém verdadeira a promessa de que a suíte de testes corre numa
+máquina sem nada instalado. A consequência
 verifica-se num comando:
 
     python3 -c "import banco.cluster.no"     # não toca em psycopg

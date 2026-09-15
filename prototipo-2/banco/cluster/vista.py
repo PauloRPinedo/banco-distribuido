@@ -4,8 +4,8 @@ Existe separada da replicação por duas razões, e a segunda é de correção:
 
 - **é um caminho de leitura.** `replicacao.py` trata do que faz o dinheiro
   mover-se; isto só responde a "como está o cluster?". Misturá-los fazia esse
-  módulo passar das ~250 linhas que o CODESTYLE marca como sinal de estar a fazer
-  duas coisas.
+  módulo passar das ~250 linhas a partir das quais um módulo costuma estar a
+  fazer duas coisas.
 - **não pode roubar trabalhadores à replicação.** O frontend pergunta uma vez por
   segundo, e se essas chamadas entrassem no mesmo `ThreadPoolExecutor` de dois
   lugares que envia os heartbeats, uma página aberta podia atrasar o batimento —

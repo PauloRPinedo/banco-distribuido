@@ -84,7 +84,7 @@ export default function Contas() {
           <>
             <p className="rotulo-de-seccao">saldo de {consultada.conta}</p>
             {/* Já vem formatado do servidor. Dividir por 100 aqui seria pôr um
-                float no meio do dinheiro, que é o que SPECS 3.1 proíbe. */}
+                float no meio do dinheiro, que é o que o banco proíbe. */}
             <p className="quantia-grande">{consultada.saldo}</p>
             {confirmado && <p className="carimbo">✓ {confirmado}</p>}
 

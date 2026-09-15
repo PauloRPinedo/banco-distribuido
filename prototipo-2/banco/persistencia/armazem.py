@@ -5,21 +5,21 @@ PostgreSQL (`armazem_postgres`, o principal desde setembro de 2026), ficheiro
 JSONL (`armazem_ficheiro`, o original, hoje saída de emergência) e memória
 (`armazem_memoria`, os testes).
 
-Cada método sai de uma linha concreta de docs/SPECS.md — não há aqui nenhum
+Cada método sai de uma necessidade concreta do protocolo — não há aqui nenhum
 "por precaução". A lista fechada é o que impede este contrato de crescer até
 deixar de ser substituível:
 
-| Método | De onde vem |
+| Método | Para que serve |
 |---|---|
-| `acrescentar` | SPECS 5, passo 4 |
-| `acrescentar_muitas` | SPECS 7, a réplica recebe um lote do líder |
-| `ler_desde` | SPECS 4.2, recuperação; e `GET /interno/log?desde=N` |
-| `ultimo_indice`, `ultimo_epoch` | SPECS 8.2, condição 3 do voto |
-| `epoch_em` | SPECS 7, correspondência de log |
-| `truncar_a_partir_de` | SPECS 7, entradas divergentes |
-| `indice_de` | SPECS 4.3, deduplicação apoiada na base |
-| `ler_estado`, `gravar_estado` | SPECS 8.2, o voto tem de ser durável |
-| `gravar_commit` | SPECS 4.3, o commit é um prefixo |
+| `acrescentar` | O passo 4 de uma escrita |
+| `acrescentar_muitas` | A réplica recebe um lote do líder |
+| `ler_desde` | Recuperação ao arrancar; e `GET /interno/log?desde=N` |
+| `ultimo_indice`, `ultimo_epoch` | Condição 3 do voto |
+| `epoch_em` | Correspondência de log entre líder e réplica |
+| `truncar_a_partir_de` | Entradas divergentes |
+| `indice_de` | Deduplicação apoiada na base |
+| `ler_estado`, `gravar_estado` | O voto tem de ser durável |
+| `gravar_commit` | O commit é um prefixo |
 """
 
 from dataclasses import dataclass
@@ -47,7 +47,7 @@ class EstadoDoNo:
 
     `indice_commit` é um prefixo, não um conjunto: o que está confirmado é sempre
     um troço contíguo do início do log. Guardar um sinal por entrada permitiria
-    representar estados que o protocolo não consegue produzir (SPECS 4.3).
+    representar estados que o protocolo não consegue produzir.
     """
 
     epoch: int = 1

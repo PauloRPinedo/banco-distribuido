@@ -1,14 +1,14 @@
-/* A linha gráfica de CODESTYLE 8, executada como um extrato impresso.
+/* A linha gráfica do painel, executada como um extrato impresso.
  *
- * A metáfora não é invenção: CODESTYLE 8.4 já diz que "cada nó é um cartão de
- * extrato, não um ponto colorido". Aqui leva-se a ideia até ao fim — o painel
- * lê-se como um documento do banco, com fios finos a estruturar em vez de
- * caixas a flutuar, e o dinheiro composto para ser lido do fundo da sala.
+ * Cada nó é um cartão de extrato, não um ponto colorido, e a ideia vai até ao
+ * fim — o painel lê-se como um documento do banco, com fios finos a estruturar
+ * em vez de caixas a flutuar, e o dinheiro composto para ser lido do fundo da
+ * sala.
  *
- * A paleta é a de 8.1, sem uma cor a mais. O roxo da referência continua de
- * fora: é a marca de outra empresa.
+ * A paleta é a que está abaixo, sem uma cor a mais. O roxo da referência
+ * continua de fora: é a marca de outra empresa.
  *
- * Os tipos são o desvio, e está registado em docs/SPECS.md 11.11.
+ * Os tipos são auto-alojados, para o painel se compor sem internet.
  */
 
 /* ---------------------------------------------------------------- tipos -- */
@@ -58,7 +58,7 @@
 /* --------------------------------------------------------------- fichas -- */
 
 :root {
-  /* CODESTYLE 8.1, tal e qual. */
+  /* A paleta, fechada. */
   --marca:         #1B4DB1;
   --marca-tenue:   #E8EEFB;
   --marca-escura:  #14397F;
@@ -79,7 +79,7 @@
   --sombra-cartao: 0 1px 2px rgba(25, 25, 25, .04),
                    0 4px 16px rgba(25, 25, 25, .04);
 
-  /* CODESTYLE 8.3: base 4. Nada fora desta escala. */
+  /* Escala de espaço, base 4. Nada fora desta escala. */
   --e1: 4px;  --e2: 8px;  --e3: 16px;
   --e4: 24px; --e5: 40px; --e6: 64px;
 
@@ -96,7 +96,7 @@ body {
   font-family: var(--corpo);
   font-size: 15px;
   line-height: 1.5;
-  /* CODESTYLE 8.2: em todos os números, sem exceção. Sem largura fixa de
+  /* Tabulares em todos os números, sem exceção. Sem largura fixa de
    * dígito os valores tremem entre leituras, e a quietude desfaz-se. */
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
@@ -212,7 +212,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; }
   .raio { position: static; }
 }
 
-/* CODESTYLE 8.3: profundidade só por sombra. Os cartões não levam contorno. */
+/* Profundidade só por sombra. Os cartões não levam contorno. */
 .cartao {
   background: var(--papel);
   border-radius: 16px;
@@ -424,7 +424,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; }
 .razao tbody tr:hover td { background: var(--papel-fundo); }
 
 /* Dinheiro à direita e em tabulares: as vírgulas alinham entre linhas, que é
- * meio motivo para um extrato ser legível (CODESTYLE 9.1). */
+ * meio motivo para um extrato ser legível. */
 .direita { text-align: right; font-variant-numeric: tabular-nums; }
 
 .razao td.direita { color: var(--tinta); font-weight: 500; }
@@ -574,8 +574,8 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; }
   to   { opacity: 1; transform: none; }
 }
 
-/* O total nunca anima (CODESTYLE 8.2). Um saldo a contar para cima num banco
- * é o género de animação que desfaz a confiança que se está a construir. */
+/* O total nunca anima. Um saldo a contar para cima num banco é o género de
+ * animação que desfaz a confiança que se está a construir. */
 .quantia-grande { animation: none !important; }
 
 @media (prefers-reduced-motion: reduce) {

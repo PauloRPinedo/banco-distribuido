@@ -1,4 +1,4 @@
-"""A transferência (SPECS 6.1).
+"""A transferência.
 
 Uma rota só. A conversão de moeda, a autotransferência e a transferência para
 sistemas externos são do projeto final, e é lá que estão.

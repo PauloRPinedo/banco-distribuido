@@ -126,8 +126,8 @@ class TesteMuitasContas(CasoComServidor):
     POR_FIO = 25
 
     def teste_transferencias_concorrentes_nao_mudam_o_total(self):
-        # O teste que CODESTYLE 6 diz não poder faltar, agora com rede pelo
-        # meio: sortear milhares de operações e verificar que a soma não mudou.
+        # O teste que não pode faltar, agora com rede pelo meio: sortear
+        # milhares de operações e verificar que a soma não mudou.
         for conta in self.CONTAS:
             self.criar_conta(conta, "100.00")
 
