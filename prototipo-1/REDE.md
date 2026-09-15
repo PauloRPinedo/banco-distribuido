@@ -26,7 +26,8 @@ fá-la aparecer no outro, porque não há duas cópias do dinheiro — há uma s
 > servidores sem estado a escrever na mesma base, e quem garante a correção é o
 > PostgreSQL, com os *locks* de linha. A base partilhada é um ponto único de
 > falha — se ela cair, caem os dois nós. A tolerância a falhas é a etapa 2, e
-> está em `projeto-final/`.
+> está em [`prototipo-2/`](../prototipo-2/), com três nós, e é lá que se
+> demonstra matar um servidor e o serviço continuar.
 
 ---
 

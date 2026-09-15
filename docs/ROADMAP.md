@@ -183,10 +183,14 @@ reconstrução — o projeto final também não tem CLI. Está registado em
 
 > Sobrevive à queda de um servidor.
 >
-> **Feita, e vive em `projeto-final/`.** Chegou a executar-se dentro de
-> `prototipo-1/` (11.6), mas essa decisão foi desfeita — ver 11.8 do
-> [`SPECS.md`](SPECS.md). `prototipo-2/` continua vazia: a etapa não tem pasta
-> própria, tem o código do projeto final.
+> **Feita, e vive em [`prototipo-2/`](../prototipo-2/).** 305 testes a passar,
+> failover verificado com três nós.
+>
+> Chegou a executar-se dentro de `prototipo-1/` (11.6), o que apagava a etapa 1;
+> quando isso se desfez (11.8) o repositório ficou sem replicação em lado nenhum,
+> e o código foi recuperado para aqui, que é onde esta tabela sempre disse que
+> ele vivia. O porquê de vir tal como estava, e não portado, está em 11.10 do
+> [`SPECS.md`](SPECS.md).
 
 O coração do trabalho. Aqui aparecem replicação, quórum, eleição e failover — e é
 aqui que se prova, com um servidor a ser morto ao vivo, que o dinheiro não se
@@ -268,9 +272,10 @@ perde.
       bloqueada, os sintomas — eleições sem fim, `epoch` a subir sozinho —
       parecem erro de protocolo e levam a procurar no sítio errado
       — `scripts/verificar_rede.sh`, e a tabela sintoma→causa do `REDE.md`
-- [ ] **3 nós mesmo com 2 laptops** (PC1 corre A, PC2 corre B e C). Com 2 nós a
-      maioria é 2 e a queda de um deixa o outro em somente leitura — não há
+- [x] **3 nós, um por portátil** — um por integrante do grupo. Com 2 nós a
+      maioria é 2 e a queda de qualquer um deixa o outro em somente leitura, sem
       failover com escrita para demonstrar
+      ([`prototipo-2/REDE.md`](../prototipo-2/REDE.md))
 - [ ] Demonstração gravada: transferências a correr, matar o primário, o cluster
       reeleger, a auditoria dar o mesmo total
 - **Pronto quando:** a demonstração corre de ponta a ponta em máquinas reais
@@ -313,8 +318,8 @@ o medir com honestidade e para o apresentar.
 
 Decidido com o grupo: em vez de subir a pilha aos poucos, esta subfase junta
 o que as ADR-0002/0003 e `docs/entregables/` já tinham decidido mas nenhuma
-subfase cobria ainda. Fica em `projeto-final/`, com `prototipo-2/` a
-manter-se como está (Python puro, ainda não iniciada).
+subfase cobria ainda. Fica em `projeto-final/`; `prototipo-2/` mantém-se em
+Python puro, com a replicação que a etapa 2 entregou.
 
 #### 3.0.1 Persistência real com PostgreSQL — *a definir*
 
