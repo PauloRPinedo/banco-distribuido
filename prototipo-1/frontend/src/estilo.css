@@ -1,0 +1,216 @@
+/* A linha gráfica de CODESTYLE 8.
+ *
+ * O roxo do painel do projeto final não vem: é a marca de outra empresa, e
+ * este trabalho não é dela. Fica o azul de CODESTYLE 8.1, que é o único
+ * matiz que sobra limpo — o verde já é o carimbo, o âmbar é o aviso e o
+ * coral é o fora do ar. */
+
+:root {
+  --marca:         #1B4DB1;
+  --marca-tenue:   #E8EEFB;
+  --papel:         #FFFFFF;
+  --papel-fundo:   #F4F6FB;
+  --tinta:         #191919;
+  --tinta-media:   #5C5C66;
+  --tinta-fraca:   #8E8E99;
+  --fio:           rgba(25, 25, 25, 0.08);
+  --fio-forte:     rgba(25, 25, 25, 0.14);
+
+  --carimbo:       #00875A;
+  --atencao:       #8A5300;
+  --atencao-tenue: #FDF3E0;
+  --fora-do-ar:    #C4314B;
+  --fora-tenue:    #FDECEF;
+
+  --sombra-cartao: 0 1px 2px rgba(25, 25, 25, .04),
+                   0 4px 16px rgba(25, 25, 25, .04);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--papel-fundo);
+  color: var(--tinta);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  /* Em todos os números, sem exceção: sem largura fixa de dígito, os valores
+   * tremem a cada leitura e a quietude — que é o ponto — desfaz-se. */
+  font-variant-numeric: tabular-nums;
+}
+
+.pagina {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 40px 24px 64px;
+}
+
+.cabecalho h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.legenda {
+  margin: 4px 0 0;
+  color: var(--tinta-fraca);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* Separadores, não navegação: é um ecrã só (CODESTYLE 7.4). */
+.separadores {
+  display: flex;
+  gap: 8px;
+  margin: 24px 0;
+}
+
+.separador {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--tinta-media);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.separador:hover { background: var(--marca-tenue); }
+
+.separador.aberto {
+  background: var(--marca);
+  color: var(--papel);
+}
+
+.colunas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+/* Profundidade só por sombra: os cartões não levam contorno, para não
+ * misturar duas estratégias de relevo. */
+.cartao {
+  background: var(--papel);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--sombra-cartao);
+}
+
+.cartao.destaque { background: var(--marca-tenue); }
+
+.cartao h2 {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.cartao h3 {
+  margin: 24px 0 8px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--tinta-fraca);
+  text-transform: uppercase;
+}
+
+/* Grande e leve: peso 300 lê-se do fundo da sala sem gritar. */
+.total {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+}
+
+.campo { display: block; margin-bottom: 16px; }
+
+.campo span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--tinta-media);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.campo input {
+  width: 100%;
+  padding: 8px 16px;
+  border: 1px solid var(--fio-forte);
+  border-radius: 12px;
+  background: var(--papel);
+  color: var(--tinta);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.campo input:focus {
+  outline: 2px solid var(--marca);
+  outline-offset: -2px;
+}
+
+.botoes { display: flex; gap: 8px; margin-bottom: 16px; }
+
+.botoes button {
+  padding: 8px 16px;
+  border: 1px solid var(--fio-forte);
+  border-radius: 12px;
+  background: var(--papel);
+  color: var(--tinta);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.botoes button:hover { border-color: var(--marca); color: var(--marca); }
+
+.botoes button.principal {
+  border-color: var(--marca);
+  background: var(--marca);
+  color: var(--papel);
+}
+
+.botoes button.principal:hover { color: var(--papel); }
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tabela th {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--fio);
+  color: var(--tinta-fraca);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.tabela td {
+  padding: 8px;
+  border-bottom: 1px solid var(--fio);
+  color: var(--tinta-media);
+}
+
+/* Dinheiro alinhado à direita, como em CODESTYLE 9.1. */
+.direita { text-align: right; }
+
+.aviso {
+  margin: 16px 0 0;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* A cor significa desvio: o que corre bem é azul e branco. */
+.aviso.carimbo { background: var(--marca-tenue); color: var(--carimbo); }
+.aviso.atencao { background: var(--atencao-tenue); color: var(--atencao); }
+.aviso.fora-do-ar { background: var(--fora-tenue); color: var(--fora-do-ar); }
