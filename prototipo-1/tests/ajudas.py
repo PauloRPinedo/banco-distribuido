@@ -33,7 +33,8 @@ except ImportError:
 exige_pilha = unittest.skipUnless(
     PILHA_INSTALADA, "requer a pilha do servidor: pip install -r requisitos.txt")
 exige_base = unittest.skipUnless(
-    BASE_DE_TESTE, "requer uma base descartável: BANCO_BD_TESTE=postgresql:///banco_teste")
+    BASE_DE_TESTE,
+    "requer uma base descartável: BANCO_BD_TESTE=postgresql:///banco_teste")
 
 
 def esperar_ate(condicao, limite_segundos: float = 10.0) -> bool:

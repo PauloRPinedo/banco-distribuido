@@ -31,8 +31,9 @@ def de_escrita(resposta: dict) -> dict:
     if "saldo_centavos" in resposta:
         enriquecida["saldo"] = formatar(resposta["saldo_centavos"])
     if "saldos_centavos" in resposta:
-        enriquecida["saldos"] = {conta: formatar(centavos)
-                                 for conta, centavos in resposta["saldos_centavos"].items()}
+        enriquecida["saldos"] = {
+            conta: formatar(centavos)
+            for conta, centavos in resposta["saldos_centavos"].items()}
     return enriquecida
 
 
