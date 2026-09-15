@@ -7,12 +7,8 @@ transferências, extrato e auditoria, onde o dinheiro nunca é criado nem
 destruído — nem sequer quando vinte pedidos chegam à mesma conta ao mesmo
 tempo, vindos de **duas máquinas diferentes**.
 
-**Estado: 111 testes passam.** 55 correm sem instalar nada; os outros 56 pedem a
-pilha do servidor e uma base de dados, e saltam-se sozinhos com o motivo
-escrito quando não as há.
-
 Corre de duas maneiras: **um portátil**, com tudo dentro, ou **dois portáteis**
-a servir contra a mesma base ([`REDE.md`](REDE.md)). A segunda é a montagem dos
+a servir contra a mesma base. A segunda é a montagem dos
 ensaios, e funciona sem uma linha de código a mais porque o servidor não guarda
 estado nenhum em memória — quem serializa as escritas é o PostgreSQL.
 
@@ -38,9 +34,7 @@ Painel em <http://localhost:8080>, API em <http://localhost:8001>.
 
 O painel é composto como um **extrato impresso**, e não como um painel de
 administração: o documento ocupa a coluna larga, os controlos vivem num raio
-estreito ao lado, e o dinheiro é tipografado para se ler do fundo da sala. Usa
-dois tipos próprios, auto-alojados — um desvio a `CODESTYLE.md` 8.2 que está
-registado em [`SPECS.md`](../docs/SPECS.md) 11.11.
+estreito ao lado, e o dinheiro é tipografado para se ler do fundo da sala.
 
 ### Dois portáteis, contra a mesma base
 
@@ -136,7 +130,7 @@ banco/
 
 E, à volta: `compose.yaml` (um portátil, com a sua base dentro),
 `compose.nuvem.yaml` com `.env.exemplo` (dois portáteis, base partilhada),
-`scripts/preparar_base.sh` (cria as tabelas, uma vez) e [`REDE.md`](REDE.md).
+`scripts/preparar_base.sh` (cria as tabelas, uma vez).
 
 As setas apontam sempre para dentro: `api → servico → {dominio, repositorio}`.
 O domínio não importa nada de rede nem de disco, e é isso que permite testá-lo
@@ -222,6 +216,54 @@ quando a transação é revertida.
 
 ---
 
+## O caminho de uma escrita
+
+```mermaid
+flowchart TD
+    A["POST /transferencias<br/>valor como texto, op_id no corpo"]
+    B["rotas_transferencias.py<br/>valida ids, texto vira centavos"]
+    C["dependencias.py abre a ligação<br/>BEGIN"]
+    D{"1. op_id já aplicado?"}
+    E["2. SELECT FOR UPDATE<br/>por ordem crescente de id"]
+    F{"2b. op_id já aplicado?<br/>agora serializado pelos locks"}
+    G{"3. validar<br/>contas existem? saldo chega?"}
+    H["4. numero da sequência<br/>débito e crédito na mesma função"]
+    I["6. UPDATE contas<br/>INSERT operacao com a resposta"]
+    J["COMMIT"]
+    K["7. resposta ao cliente"]
+    R["ROLLBACK<br/>nada mudou"]
+    S["resposta guardada<br/>o dinheiro não se move outra vez"]
+
+    A --> B --> C --> D
+    D -->|sim| S
+    D -->|não| E --> F
+    F -->|sim| S
+    F -->|não| G
+    G -->|recusa| R
+    G -->|ok| H --> I --> J --> K
+    S --> K
+    R --> K
+```
+
+**O passo 5 de SPECS 5 não aparece**, e é de propósito: é "replicar e esperar
+pela maioria". Há um nó só, e a durabilidade é o commit do PostgreSQL. É a etapa
+2, em [`prototipo-2/`](../prototipo-2/), que o preenche.
+
+**Os dois losangos de `op_id` não são um deles a mais.** O primeiro poupa o
+trabalho quando a resposta já lá está; o segundo é o que fecha a corrida, porque
+lê já dentro dos locks. Sem ele, duas retentativas simultâneas veriam ambas "ainda
+não aplicada" e ambas seguiriam em frente.
+
+**Tudo entre o `BEGIN` e o `COMMIT` é uma transação só.** Ou as duas contas
+mudam, ou nenhuma muda — e é daí, e só daí, que vem a atomicidade de RF-05. Não
+há commit em duas fases porque não é preciso: as duas contas estão no mesmo nó.
+
+As quatro operações — criar conta, depositar, sacar, transferir — percorrem este
+mesmo caminho. Muda o objeto que entra em `ServicoDeEscrita.aplicar()`, não a
+sequência.
+
+---
+
 ## As três decisões que sustentam a invariante
 
 **1. Dinheiro é inteiro de centavos.** Nunca `float`, em lado nenhum. A
@@ -262,46 +304,6 @@ portáteis está coberto a sério:** uma transferência pedida ao nó B mexe em 
 que o nó A também serve, e `teste_dois_nos.py` verifica-o. O que continua por
 cobrir é a *tolerância a falhas* — os dois nós partilham a base, e não sobrevivem
 à queda dela.
-
----
-
-## O que mudou face à etapa entregue
-
-Esta pasta foi reconstruída a partir de `projeto-final/`, para voltar a ser o que
-a divisão em etapas precisa que ela seja: um banco de um nó só, a funcionar
-isolado. O que lá estava antes — PostgreSQL como log replicado, eleição,
-failover, injeção de falhas e um painel de cluster — era trabalho das etapas 2 e
-3 a viver na pasta da etapa 1.
-
-| Antes (`git show 3683a0f`) | Agora |
-|---|---|
-| `http.server` da biblioteca padrão | FastAPI e uvicorn |
-| WAL em JSONL, com PostgreSQL como armazém do log | PostgreSQL como estado, em duas tabelas |
-| `dominio`, `persistencia`, `cluster`, `interface` | `dominio`, `repositorio`, `servico`, `api` |
-| Locks em memória, por conta | `SELECT ... FOR UPDATE`, por conta |
-| Replicação, eleição, failover, injeção de falhas | Nada disso: é de outra etapa |
-| Cluster de três nós, cada um com a sua base | Um ou dois nós, contra **uma** base ([`REDE.md`](REDE.md)) |
-| Cliente de linha de comando | Painel web |
-| 305 testes | 111 testes |
-
-**Quatro defeitos do projeto final que não vieram atrás**, todos encontrados a
-portar o código:
-
-1. `guardar` de contas era um *upsert*. Com o id a vir do cliente, criar a conta
-   `alice` outra vez passava a ser um comando que **repõe o saldo da alice**.
-2. Não havia `FOR UPDATE`. Vinte saques simultâneos de R$ 1,00 numa conta com
-   R$ 10,00 passavam os vinte.
-3. `para_centavos` fazia `str(texto)` antes de validar, e por isso aceitava em
-   silêncio o número `25.00` que SPECS 6 manda recusar.
-4. A auditoria devolvia `Decimal`, porque `SUM()` sobre `BIGINT` devolve
-   `numeric` — um valor que ia acabar em vírgula flutuante ao ser serializado.
-
-**O que se perdeu, dito sem rodeios:** o cliente de linha de comando (F-12,
-RF-17) deixa de existir no repositório inteiro — `projeto-final/` também não
-tem. Quem quiser vê-lo tem de ir a `git show 7b430e6`. A replicação, a eleição
-e o failover, que existiam nesta pasta, também deixaram de existir em qualquer
-sítio. **Foram recuperadas**, para [`prototipo-2/`](../prototipo-2/), que é onde
-a etapa 2 sempre devia ter estado — ver `docs/SPECS.md` 11.10.
 
 ---
 
