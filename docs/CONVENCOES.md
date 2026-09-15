@@ -54,18 +54,18 @@ exercita.
 A base é a biblioteca padrão do Python 3.10+: `json`, `threading`, `argparse`,
 `dataclasses`, `decimal`, `unittest`.
 
-**Há quatro dependências externas, e são as mesmas em todas as etapas**, decididas
-pelo grupo em setembro de 2026 (ver `SPECS.md` 11.8):
+**As dependências mudam com a pasta**, e isso é uma decisão consciente com um
+custo assumido (`SPECS.md` 11.8 e 11.10):
 
-| Dependência | Porquê |
-|---|---|
-| `fastapi` | O servidor HTTP e a validação dos corpos |
-| `uvicorn[standard]` | Quem corre o servidor |
-| `psycopg2-binary` | O acesso ao PostgreSQL, que guarda o estado |
-| `pydantic` | Os modelos dos corpos, que vêm com o FastAPI |
+| Pasta | Dependências | Porquê |
+|---|---|---|
+| `prototipo-1/` e `projeto-final/` | `fastapi`, `uvicorn[standard]`, `psycopg2-binary`, `pydantic` | A pilha escolhida em setembro de 2026 para a etapa 1 reconstruída e para o projeto final |
+| `prototipo-2/` | `psycopg[binary]>=3.1`, e só | Corre sobre o `http.server` da biblioteca padrão; o PostgreSQL é o armazém do log, e `--armazem ficheiro` dispensa-o por completo |
 
-Ter a mesma pilha nas três etapas é a decisão, e é o que faz a passagem de uma para
-a outra ser uma questão de acrescentar em vez de reescrever.
+**O que isto custa:** a progressão deixa de se ler como uma pilha só a crescer.
+A alternativa era portar a etapa 2 para FastAPI, e um terço dela assenta em ter o
+estado em memória do processo — semanas de reescrita para não mudar nada do que o
+sistema faz. Está registado em `SPECS.md` 11.10.
 
 **A regra de dependência que continua a valer**, e que é a que interessa: o domínio
 não conhece rede nem disco. É verificável num comando:

@@ -34,7 +34,7 @@ O primário só responde ao cliente depois de a operação estar gravada em disc
 | Etapa | Pasta | Objetivo | Estado |
 |---|---|---|---|
 | Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto, num ou em dois nós | **reconstruído**, 111 testes |
-| Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | feita, e vive em `projeto-final/` |
+| Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | **feita**, 305 testes |
 | Projeto final | [`projeto-final/`](projeto-final/) | Prova, mede e mostra | em curso |
 
 O Protótipo 1 foi entregue em setembro de 2026 com um banco correto num nó só, e
@@ -47,8 +47,10 @@ A decisão foi desfeita. O Protótipo 1 é hoje uma versão básica do projeto f
 as mesmas camadas e a mesma pilha, sem replicação nem autenticação. O porquê, e os
 quatro desvios que isto custa, estão em [`docs/SPECS.md`](docs/SPECS.md) 11.8.
 
-`prototipo-2/` está vazia de propósito: a etapa 2 não tem pasta própria, tem o
-código do projeto final.
+A replicação, a eleição e o failover que tinham ficado dentro do Protótipo 1
+foram recuperados para `prototipo-2/`, que é onde a etapa 2 sempre devia ter
+estado ([`docs/SPECS.md`](docs/SPECS.md) 11.10). Corre sobre a biblioteca padrão,
+com três nós — um por portátil, um por integrante do grupo.
 
 | Quero ver | Comando |
 |---|---|

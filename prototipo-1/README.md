@@ -21,7 +21,8 @@ estado nenhum em memória — quem serializa as escritas é o PostgreSQL.
 > deliberado. O dinheiro tem de estar certo **antes** de ser distribuído — uma
 > corrida que passe despercebida aqui vai parecer, na etapa seguinte, um erro de
 > replicação, e procurar-se-á no sítio errado durante dias. RF-09 e RF-10 são da
-> etapa 2, e estão em `projeto-final/`.
+> etapa 2, e estão em [`prototipo-2/`](../prototipo-2/) — lá há três nós, log
+> replicado, eleição de primário e failover a sério.
 
 ---
 
@@ -219,8 +220,8 @@ portar o código:
 RF-17) deixa de existir no repositório inteiro — `projeto-final/` também não
 tem. Quem quiser vê-lo tem de ir a `git show 7b430e6`. A replicação, a eleição
 e o failover, que existiam nesta pasta, também deixaram de existir em qualquer
-sítio: `projeto-final/` tem o `cluster/` por escrever e `prototipo-2/` está
-vazia. Estão em `git show 3683a0f`.
+sítio. **Foram recuperadas**, para [`prototipo-2/`](../prototipo-2/), que é onde
+a etapa 2 sempre devia ter estado — ver `docs/SPECS.md` 11.10.
 
 ---
 
