@@ -222,6 +222,58 @@ quando a transação é revertida.
 
 ---
 
+## O caminho de uma escrita
+
+Uma transferência, do pedido HTTP ao commit. Os passos numerados são os da
+secção 5 de [`SPECS.md`](../docs/SPECS.md), e **nenhum deles pode trocar de
+lugar** — a ordem é o que torna a invariante do dinheiro verdadeira.
+
+```mermaid
+flowchart TD
+    A["POST /transferencias<br/>valor como texto, op_id no corpo"]
+    B["rotas_transferencias.py<br/>valida ids, texto vira centavos"]
+    C["dependencias.py abre a ligação<br/>BEGIN"]
+    D{"1. op_id já aplicado?"}
+    E["2. SELECT FOR UPDATE<br/>por ordem crescente de id"]
+    F{"2b. op_id já aplicado?<br/>agora serializado pelos locks"}
+    G{"3. validar<br/>contas existem? saldo chega?"}
+    H["4. numero da sequência<br/>débito e crédito na mesma função"]
+    I["6. UPDATE contas<br/>INSERT operacao com a resposta"]
+    J["COMMIT"]
+    K["7. resposta ao cliente"]
+    R["ROLLBACK<br/>nada mudou"]
+    S["resposta guardada<br/>o dinheiro não se move outra vez"]
+
+    A --> B --> C --> D
+    D -->|sim| S
+    D -->|não| E --> F
+    F -->|sim| S
+    F -->|não| G
+    G -->|recusa| R
+    G -->|ok| H --> I --> J --> K
+    S --> K
+    R --> K
+```
+
+**O passo 5 de SPECS 5 não aparece**, e é de propósito: é "replicar e esperar
+pela maioria". Há um nó só, e a durabilidade é o commit do PostgreSQL. É a etapa
+2, em [`prototipo-2/`](../prototipo-2/), que o preenche.
+
+**Os dois losangos de `op_id` não são um deles a mais.** O primeiro poupa o
+trabalho quando a resposta já lá está; o segundo é o que fecha a corrida, porque
+lê já dentro dos locks. Sem ele, duas retentativas simultâneas veriam ambas "ainda
+não aplicada" e ambas seguiriam em frente.
+
+**Tudo entre o `BEGIN` e o `COMMIT` é uma transação só.** Ou as duas contas
+mudam, ou nenhuma muda — e é daí, e só daí, que vem a atomicidade de RF-05. Não
+há commit em duas fases porque não é preciso: as duas contas estão no mesmo nó.
+
+As quatro operações — criar conta, depositar, sacar, transferir — percorrem este
+mesmo caminho. Muda o objeto que entra em `ServicoDeEscrita.aplicar()`, não a
+sequência.
+
+---
+
 ## As três decisões que sustentam a invariante
 
 **1. Dinheiro é inteiro de centavos.** Nunca `float`, em lado nenhum. A
