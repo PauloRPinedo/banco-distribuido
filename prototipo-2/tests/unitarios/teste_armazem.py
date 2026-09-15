@@ -6,7 +6,7 @@ comportarem igual, os testes que correm em memória não dizem nada sobre o que
 acontece na demonstração.
 
 Os testes contra o PostgreSQL saltam-se sozinhos quando não há base, com o
-motivo escrito — o ROADMAP 3.5 proíbe testes pendentes sem explicação.
+motivo escrito: um teste pendente sem explicação não diz nada a quem o lê.
 """
 
 import os

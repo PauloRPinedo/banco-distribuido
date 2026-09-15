@@ -1,4 +1,4 @@
-"""Deduplicação por `op_id` (SPECS 3.3).
+"""Deduplicação por `op_id`.
 
 Uma operação repetida pelo cliente move o dinheiro uma só vez. É o que torna
 seguro repetir um pedido de que não se sabe o desfecho — a rede caiu depois de
@@ -37,7 +37,7 @@ class TesteMesmoOpId(CasoComServidor):
         self.assertEqual(primeira, segunda)
 
     def teste_mesmo_op_id_com_outro_valor_devolve_o_resultado_guardado(self):
-        # SPECS 3.3 diz "devolve o resultado guardado", e é o guardado mesmo:
+        # Devolve "o resultado guardado", e é o guardado mesmo:
         # não se volta a aplicar nada, nem sequer o que o cliente agora pede.
         self.criar_conta("alice", "100.00")
         self.criar_conta("bob", "0")

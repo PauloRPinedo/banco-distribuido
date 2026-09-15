@@ -5,8 +5,8 @@ Existe por duas razões concretas:
 - **construir um `No` num sítio só.** A assinatura mudou uma vez (quando o
   armazém passou a ser injetado) e obrigou a tocar em cinco ficheiros. Da
   próxima vez toca-se aqui.
-- **esperar por uma condição, nunca por um relógio.** O ROADMAP proíbe `sleep`
-  de valor arbitrário nos testes: passa numa máquina e falha noutra, e quando
+- **esperar por uma condição, nunca por um relógio.** Não se usa `sleep` de
+  valor arbitrário nos testes: passa numa máquina e falha noutra, e quando
   falha não se sabe se o erro é do código ou do tempo.
 """
 
@@ -121,7 +121,7 @@ def criar_cluster_de_teste(caso, quantidade=3, semente=42, heartbeat_ms=30,
     configuração valida.
 
     Devolve a lista de nós. Nenhum é primário à partida: arrancam todos como
-    réplica (SPECS 4.2) e elegem um entre si.
+    réplica e elegem um entre si.
     """
     import threading
 

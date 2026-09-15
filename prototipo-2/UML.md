@@ -219,8 +219,7 @@ primário saudável.
 
 ## 3. Uma transferência confirmada por maioria
 
-A ordem dos passos é a da secção 5 do [`SPECS.md`](../docs/SPECS.md) e não pode
-mudar.
+A ordem dos passos não pode mudar.
 
 ```mermaid
 sequenceDiagram
@@ -327,7 +326,7 @@ sequenceDiagram
 ```
 
 O nó que reencaminha é um **cliente puro**: não grava nada, não toca no seu log, e
-por isso a ordem da secção 5 do SPECS continua intacta. O `op_id` vem no corpo
+por isso a ordem dos passos de uma escrita continua intacta. O `op_id` vem no corpo
 original, o que torna o reenvio seguro de repetir.
 
 ---

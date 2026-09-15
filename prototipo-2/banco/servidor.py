@@ -5,7 +5,7 @@
     python3 -m banco.servidor --id A --porta 8001 --armazem ficheiro
 
 É aqui que se escolhe onde o log vive. O nó não sabe: recebe um armazém já
-construído (docs/SPECS.md 4.3).
+construído.
 """
 
 import argparse
@@ -64,7 +64,7 @@ def main(argumentos: list[str] | None = None) -> int:
         return 2
     except ValueError as erro:
         # Falta de configuração não é um rasto de exceção: é uma frase e o passo
-        # seguinte, como manda a secção 9.4 do CODESTYLE.
+        # seguinte.
         print(f"  erro: {erro}", file=sys.stderr)
         print("  → ou arranque sem base de dados: "
               "python3 -m banco.servidor --armazem ficheiro", file=sys.stderr)

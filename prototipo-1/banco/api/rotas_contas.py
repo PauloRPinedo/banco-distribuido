@@ -1,4 +1,4 @@
-"""As rotas de uma conta (SPECS 6.1).
+"""As rotas de uma conta.
 
 As rotas não têm `try/except`: os erros do domínio sobem e são traduzidos pelos
 tratadores registados em `app.py`. O que fica aqui é só o que é mesmo desta

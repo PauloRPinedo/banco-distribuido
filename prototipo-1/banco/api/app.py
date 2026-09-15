@@ -1,4 +1,4 @@
-"""A aplicação: as rotas de SPECS 6.1 e a tradução uniforme dos erros."""
+"""A aplicação: as rotas de cliente e a tradução uniforme dos erros."""
 
 import os
 

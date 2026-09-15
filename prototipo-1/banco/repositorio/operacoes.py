@@ -19,7 +19,7 @@ class RepositorioOperacoes:
     def resposta_guardada(self, op_id: str) -> dict | None:
         """A resposta que este `op_id` já recebeu, ou None se é a primeira vez.
 
-        Metade da deduplicação de SPECS 3.3; a outra metade — devolvê-la sem
+        Metade da deduplicação; a outra metade — devolvê-la sem
         voltar a aplicar nada — é do serviço.
         """
         with self._conexao.cursor() as cursor:
@@ -28,7 +28,7 @@ class RepositorioOperacoes:
         return None if linha is None else linha["resposta"]
 
     def proximo_numero(self) -> int:
-        """O próximo lugar na ordem total das operações (o `indice` de SPECS 3.3)."""
+        """O próximo lugar na ordem total das operações."""
         with self._conexao.cursor() as cursor:
             cursor.execute("SELECT nextval('operacao_numero') AS numero")
             return cursor.fetchone()["numero"]

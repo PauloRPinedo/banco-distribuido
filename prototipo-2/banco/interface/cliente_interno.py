@@ -1,4 +1,4 @@
-"""Falar com outro nó do cluster (docs/SPECS.md 6.2).
+"""Falar com outro nó do cluster.
 
 Está separado do `cliente_http` porque as regras são outras. Um cliente humano
 quer saber porque é que o banco recusou; um nó só quer saber se o par respondeu a
@@ -73,7 +73,7 @@ def encaminhar(endereco: str, metodo: str, caminho: str, corpo: dict | None,
     failover vê-se na página sem ninguém tocar em nada.
 
     Quem reencaminha é um cliente puro: não grava nada, não toca no seu log, e
-    por isso a ordem da secção 5 do SPECS continua intacta. O `op_id` vem no
+    por isso a ordem dos passos de uma escrita continua intacta. O `op_id` vem no
     corpo original, o que torna o reenvio seguro de repetir.
     """
     dados = json.dumps(corpo).encode("utf-8") if corpo is not None else None

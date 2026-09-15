@@ -3,8 +3,6 @@
 Existe uma raiz única para a camada HTTP traduzir tudo num só sítio: cada erro
 carrega o seu código e o seu estado, e a rota não precisa de saber quais
 existem. Acrescentar um erro novo não obriga a mexer no servidor.
-
-Os códigos e estados são os da tabela da secção 6 de docs/SPECS.md.
 """
 
 
@@ -60,7 +58,7 @@ class ArmazemIndisponivel(ErroDoBanco):
 
 
 class NaoSouPrimario(ErroDoBanco):
-    """Escrita enviada a uma réplica (SPECS 6.1).
+    """Escrita enviada a uma réplica.
 
     Traz o primário provável no corpo para o cliente saber a quem perguntar a
     seguir, em vez de tentar os nós às cegas.
@@ -81,7 +79,7 @@ class NaoSouPrimario(ErroDoBanco):
 
 
 class SemQuorum(ErroDoBanco):
-    """A maioria não confirmou a tempo (SPECS 7).
+    """A maioria não confirmou a tempo.
 
     A entrada fica **gravada e por confirmar**: quem decide o destino dela é o
     primário seguinte. Repetir com o mesmo `op_id` é seguro, e é o que se deve
@@ -93,7 +91,7 @@ class SemQuorum(ErroDoBanco):
 
 
 class SomenteLeitura(ErroDoBanco):
-    """O nó não vê a maioria há mais de um timeout de eleição (SPECS 11.1).
+    """O nó não vê a maioria há mais de um timeout de eleição.
 
     Continua a responder a saldo, extrato e auditoria: o que sabe continua
     correto. Recusa escritas porque não tem a quem replicá-las, e confirmar uma

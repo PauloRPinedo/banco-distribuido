@@ -91,7 +91,7 @@ def pedir(servidor: str, metodo: str, caminho: str,
 class Ligacao:
     """Fala com o cluster sem quem chama ter de saber quem é o primário.
 
-    Três comportamentos, todos da secção 6.1 do SPECS:
+    Três comportamentos:
 
     - tenta os nós por ordem, e o que respondeu fica em primeiro na vez seguinte;
     - segue o `primario_provavel` de um `409 nao_sou_primario`;

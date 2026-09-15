@@ -1,4 +1,4 @@
-"""Papel do nó, epoch e voto (docs/SPECS.md secção 8).
+"""Papel do nó, epoch e voto.
 
 Guarda o estado de quem manda, e só isso. Não fala com a rede: quem envia pedidos
 de voto é o `Replicador`. A separação existe por uma razão concreta de correção —
@@ -99,7 +99,7 @@ class Eleicao:
                 self._timeout_s = self._sortear()
 
     def ver_epoch(self, epoch: int) -> bool:
-        """O *fencing* da secção 8.3: um epoch maior despromove sempre.
+        """O *fencing*: um epoch maior despromove sempre.
 
         Devolve True se houve despromoção, para quem chama poder gravar o estado
         novo. Um primário antigo que volta de uma pausa descobre aqui que já não
@@ -149,11 +149,11 @@ class Eleicao:
 
     def conceder_voto(self, pedido: PedidoDeVoto, ultimo_indice: int,
                       ultimo_epoch: int) -> tuple[bool, str]:
-        """As três condições da secção 8.2. Devolve também o motivo.
+        """As três condições do voto. Devolve também o motivo.
 
         O motivo não é um luxo: depurar uma eleição que não converge sem saber
-        **qual** das três condições falhou é adivinhar. O CODESTYLE secção 10
-        exige-o no log estruturado, e é aqui que ele nasce.
+        **qual** das três condições falhou é adivinhar. O log estruturado
+        exige-o, e é aqui que ele nasce.
         """
         with self._lock:
             if pedido.epoch < self._epoch:
@@ -172,7 +172,7 @@ class Eleicao:
 
             # Condição 3: o log do candidato tem de estar pelo menos tão
             # atualizado quanto o meu. É isto que garante que nada confirmado se
-            # perde — a demonstração está na secção 8.2 do SPECS.
+            # perde.
             meu = (ultimo_epoch, ultimo_indice)
             dele = (pedido.ultimo_epoch, pedido.ultimo_indice)
             if dele < meu:

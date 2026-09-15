@@ -1,11 +1,11 @@
 """O que cada comando do CLI faz.
 
-Separado de `cli.py` para nenhum dos dois passar das 250 linhas que o CODESTYLE
-marca como sinal de um módulo a fazer duas coisas: aqui está o **que** cada
+Separado de `cli.py` para nenhum dos dois passar das ~250 linhas a partir das
+quais um módulo costuma estar a fazer duas coisas: aqui está o **que** cada
 comando mostra, ali está como os argumentos se leem e como os erros se traduzem.
 
 Nenhuma função aqui sabe qual é o nó primário: falam com uma `Ligacao`, que
-segue o `primario_provavel` sozinha (SPECS 6.1).
+segue o `primario_provavel` sozinha.
 """
 
 import sys
@@ -105,7 +105,7 @@ def auditoria(opcoes) -> int:
 
 
 def estado(opcoes) -> int:
-    """Uma linha por nó, no formato da secção 9.2 do CODESTYLE.
+    """Uma linha por nó, em colunas alinhadas.
 
     Pergunta a **cada** nó em vez de perguntar a um só: durante um failover é
     justamente a discordância entre eles que interessa ver. Um nó que não

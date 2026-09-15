@@ -1,4 +1,4 @@
-"""A auditoria do total em circulação (SPECS 6.1)."""
+"""A auditoria do total em circulação."""
 
 from fastapi import APIRouter, Depends
 

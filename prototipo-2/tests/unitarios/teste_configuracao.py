@@ -73,7 +73,7 @@ class TesteMaioria(unittest.TestCase):
 class TesteSementePorNo(unittest.TestCase):
 
     def teste_cada_no_sorteia_a_sua_semente(self):
-        """O erro mais caro desta etapa, segundo o próprio ROADMAP.
+        """O erro mais caro desta etapa.
 
         Com a mesma semente nos três, todos sorteiam o mesmo timeout,
         candidatam-se juntos, dividem os votos, e a eleição nunca converge — com

@@ -9,7 +9,7 @@
 #
 # São as mesmas quatro do projeto final, de propósito: a mesma pilha nas duas
 # etapas é o que faz a passagem de uma para a outra ser uma questão de
-# acrescentar, e não de reescrever. A justificação está em docs/SPECS.md 11.8.
+# acrescentar, e não de reescrever.
 #
 # psycopg2-binary sobe do 2.9.9 do projeto final para o 2.9.10: o 2.9.9 não
 # publica wheel para o Python 3.13 e tenta compilar a partir do código-fonte,

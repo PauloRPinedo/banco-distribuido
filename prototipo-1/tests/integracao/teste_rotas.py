@@ -1,4 +1,4 @@
-"""As rotas de cliente de SPECS 6.1, contra um servidor a correr."""
+"""As rotas de cliente, contra um servidor a correr."""
 
 import unittest
 
@@ -17,7 +17,7 @@ class TesteCaminhoFeliz(CasoComServidor):
 
     def teste_criar_conta_devolve_o_saldo_em_texto(self):
         # O cliente não tem de dividir por 100: dividir seria pôr um float no
-        # meio do dinheiro, que é o que SPECS 3.1 proíbe.
+        # meio do dinheiro, que é o que o banco proíbe.
         _, corpo = self.pedir("POST", "/contas", {
             "conta": "alice", "saldo_inicial": "1234.56", "op_id": "op-criar-02"})
 
@@ -127,7 +127,7 @@ class TesteErros(CasoComServidor):
         self.assertEqual(estado, 422)
 
     def teste_saque_recusado_diz_quanto_ha_e_quanto_se_pediu(self):
-        # CODESTYLE 5: a mensagem traz números concretos, não "operação inválida".
+        # A mensagem traz números concretos, não "operação inválida".
         self.criar_conta("alice", "10.00")
 
         _, corpo = self.pedir("POST", "/contas/alice/saque",
@@ -170,7 +170,7 @@ class TesteErros(CasoComServidor):
         self.assertEqual(corpo["saldo_centavos"], 10000)
 
     def teste_valor_como_numero_json_e_recusado(self):
-        # SPECS 6: o dinheiro viaja como texto. 25.00 seria um float.
+        # O dinheiro viaja como texto. 25.00 seria um float.
         self.criar_conta("alice", "100.00")
 
         estado, corpo = self.pedir("POST", "/contas/alice/deposito",
@@ -209,7 +209,7 @@ class TesteErros(CasoComServidor):
         self.assertEqual((estado, corpo["erro"]), (400, "valor_invalido"))
 
     def teste_corpo_sem_op_id_e_recusado_com_a_forma_de_erro_do_banco(self):
-        # E não com o 422 do FastAPI: SPECS 6 fixa uma só forma de erro.
+        # E não com o 422 do FastAPI: há uma só forma de erro.
         self.criar_conta("alice", "100.00")
 
         estado, corpo = self.pedir("POST", "/contas/alice/deposito", {"valor": "1.00"})
