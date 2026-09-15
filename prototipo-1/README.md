@@ -148,6 +148,66 @@ escrevê-la quatro vezes seria dar-lhe quatro sítios para divergir.
 
 ---
 
+## A base de dados
+
+Duas tabelas, e não mais. `conta` diz quanto dinheiro existe **agora**;
+`operacao` diz **tudo o que aconteceu**. O esquema completo, com o porquê de
+cada coluna, está em [`db/esquema.sql`](db/esquema.sql).
+
+```mermaid
+erDiagram
+    CONTA ||--o{ OPERACAO : "conta_origem_id"
+    CONTA ||--o{ OPERACAO : "conta_destino_id"
+
+    CONTA {
+        VARCHAR(32) id PK "CHECK ~ '^[a-z0-9_-]{1,32}$'"
+        BIGINT saldo_centavos "NOT NULL, CHECK >= 0"
+        DOUBLE_PRECISION criada_em "NOT NULL, instante Unix"
+    }
+
+    OPERACAO {
+        VARCHAR(64) op_id PK "gerado pelo cliente"
+        BIGINT numero UK "NOT NULL, da sequência operacao_numero"
+        VARCHAR(20) tipo "criar_conta | deposito | saque | transferencia"
+        VARCHAR(32) conta_origem_id FK "nulo em criar_conta e deposito"
+        VARCHAR(32) conta_destino_id FK "nulo em saque"
+        BIGINT valor_centavos "NOT NULL, CHECK >= 0"
+        JSONB resposta "NOT NULL, o corpo que o cliente recebeu"
+        DOUBLE_PRECISION instante "NOT NULL, instante Unix"
+    }
+```
+
+**Porque é que são duas tabelas e não uma.** A auditoria (RF-14) soma as duas de
+maneiras independentes e compara: os saldos de `conta` contra o histórico de
+`operacao`. Se fosse o mesmo cálculo duas vezes, concordarem não provaria nada.
+
+**As duas chaves estrangeiras são para a mesma tabela**, e é isso que faz uma
+transferência ser uma linha só em vez de duas: `conta_origem_id` e
+`conta_destino_id` apontam ambas para `conta`. O dinheiro entra pelo destino e
+sai pela origem — criar conta e depositar só têm destino, sacar só tem origem, e
+é essa assimetria que faz a auditoria somar certo sem conhecer as operações uma
+a uma.
+
+Quatro escolhas que valem a explicação:
+
+| Escolha | Porquê |
+|---|---|
+| `op_id` é a **chave primária**, e vem do cliente | É a deduplicação (SPECS 3.3): repetir a mesma escrita move o dinheiro uma vez só. A base garante-o, não só o código |
+| `op_id` é `VARCHAR`, não `UUID` | SPECS 3.3 dá `"3f1c8a2e"` como exemplo, que não é um UUID. A coluna `UUID` apertaria mais do que a especificação e devolveria um 500 do *driver* em vez de um `400 valor_invalido` explicado |
+| Os instantes são `DOUBLE PRECISION`, não `TIMESTAMP` | SPECS 3.2 diz instante Unix. Com um `TIMESTAMP` sem fuso, dois portáteis com fusos diferentes leem valores diferentes da mesma linha |
+| `resposta` guarda o corpo que o cliente recebeu | Ao repetir o `op_id` devolve-se **isto**, verbatim. Recalcular a partir dos saldos de agora daria uma resposta diferente se entretanto houvesse outras operações |
+
+**Não há coluna `estado`.** Sem *commit* em duas fases, a linha só existe se a
+transação confirmou — um campo a dizer o mesmo seria um segundo sítio a poder
+divergir do primeiro.
+
+**`numero` ordena, não conta.** É o `indice` de SPECS 3.3 no que importa aqui:
+dar uma ordem total às operações, para o extrato não depender de dois instantes
+empatarem. Não é contíguo, porque uma sequência do PostgreSQL não volta atrás
+quando a transação é revertida.
+
+---
+
 ## As três decisões que sustentam a invariante
 
 **1. Dinheiro é inteiro de centavos.** Nunca `float`, em lado nenhum. A
