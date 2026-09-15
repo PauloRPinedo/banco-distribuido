@@ -156,26 +156,40 @@ cada coluna, está em [`db/esquema.sql`](db/esquema.sql).
 
 ```mermaid
 erDiagram
-    CONTA ||--o{ OPERACAO : "conta_origem_id"
-    CONTA ||--o{ OPERACAO : "conta_destino_id"
+    CONTA ||--o{ OPERACAO : origem
+    CONTA ||--o{ OPERACAO : destino
 
     CONTA {
-        VARCHAR(32) id PK "CHECK ~ '^[a-z0-9_-]{1,32}$'"
-        BIGINT saldo_centavos "NOT NULL, CHECK >= 0"
-        DOUBLE_PRECISION criada_em "NOT NULL, instante Unix"
+        VARCHAR id PK
+        BIGINT saldo_centavos
+        FLOAT8 criada_em
     }
 
     OPERACAO {
-        VARCHAR(64) op_id PK "gerado pelo cliente"
-        BIGINT numero UK "NOT NULL, da sequência operacao_numero"
-        VARCHAR(20) tipo "criar_conta | deposito | saque | transferencia"
-        VARCHAR(32) conta_origem_id FK "nulo em criar_conta e deposito"
-        VARCHAR(32) conta_destino_id FK "nulo em saque"
-        BIGINT valor_centavos "NOT NULL, CHECK >= 0"
-        JSONB resposta "NOT NULL, o corpo que o cliente recebeu"
-        DOUBLE_PRECISION instante "NOT NULL, instante Unix"
+        VARCHAR op_id PK
+        BIGINT numero UK
+        VARCHAR tipo
+        VARCHAR conta_origem_id FK
+        VARCHAR conta_destino_id FK
+        BIGINT valor_centavos
+        JSONB resposta
+        FLOAT8 instante
     }
 ```
+
+| Coluna | Tipo | Regra |
+|---|---|---|
+| `conta.id` | `VARCHAR(32)` | Chave primária. `CHECK` do formato `[a-z0-9_-]`, 1 a 32 caracteres |
+| `conta.saldo_centavos` | `BIGINT` | `NOT NULL`, `CHECK >= 0` — a segunda linha de defesa de RF-06 |
+| `conta.criada_em` | `DOUBLE PRECISION` | `NOT NULL`. Instante Unix |
+| `operacao.op_id` | `VARCHAR(64)` | Chave primária, **gerada pelo cliente** |
+| `operacao.numero` | `BIGINT` | `NOT NULL UNIQUE`, da sequência `operacao_numero` |
+| `operacao.tipo` | `VARCHAR(20)` | `CHECK` em `criar_conta`, `deposito`, `saque`, `transferencia` |
+| `operacao.conta_origem_id` | `VARCHAR(32)` | Chave estrangeira. Nulo em `criar_conta` e `deposito` |
+| `operacao.conta_destino_id` | `VARCHAR(32)` | Chave estrangeira. Nulo em `saque` |
+| `operacao.valor_centavos` | `BIGINT` | `NOT NULL`, `CHECK >= 0` |
+| `operacao.resposta` | `JSONB` | `NOT NULL`. O corpo que o cliente recebeu |
+| `operacao.instante` | `DOUBLE PRECISION` | `NOT NULL`. Instante Unix |
 
 **Porque é que são duas tabelas e não uma.** A auditoria (RF-14) soma as duas de
 maneiras independentes e compara: os saldos de `conta` contra o histórico de
