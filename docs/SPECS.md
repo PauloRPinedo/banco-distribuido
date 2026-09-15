@@ -823,9 +823,10 @@ uma pasta que mostrasse o banco de um nó só a funcionar isolado**, que era a r
 ser da divisão em etapas. Com o trabalho da etapa 2 já a viver dentro da pasta da
 etapa 1, a progressão que as três pastas existem para mostrar tinha desaparecido.
 
-O Protótipo 1 foi reconstruído sobre a pilha do projeto final (ver 11.8). O estado
-reaberto continua acessível em `git show 3683a0f` e o estado entregue em
-`git show 7b430e6`.
+O Protótipo 1 foi reconstruído sobre a pilha do projeto final (ver 11.8), e a
+replicação que vivia aqui dentro foi recuperada para `prototipo-2/`, onde sempre
+devia ter estado (ver 11.10). O estado reaberto continua acessível em
+`git show 3683a0f` e o estado entregue em `git show 7b430e6`.
 
 ### 11.7 Sessão de ensaio exclusiva
 
@@ -920,7 +921,7 @@ propósito — contra dois fios ainda se poderia objetar que partilham memória.
 | Onde está o dinheiro | Num sítio | Em três, com um log replicado |
 | Se cair uma máquina de servidor | A outra continua a servir | A outra continua a servir |
 | **Se cair a base** | **Cai tudo** | Não há uma base única para cair |
-| RF-09 (eleição), RF-10 (maioria) | **Por cumprir** | Cumpridos |
+| RF-09 (eleição), RF-10 (maioria) | **Por cumprir** | Cumpridos, em `prototipo-2/` (11.10) |
 
 A base partilhada é um ponto único de falha, e por isso esta montagem **não**
 cobre F-08 nem RF-09 a RF-13. O que cobre, e antes não cobria, é RF-04 no seu
@@ -938,6 +939,48 @@ como o ADR-0001 decidiu.
 alcançável pelos dois portáteis, o que na prática significa uma base gerida e
 uma conta num fornecedor. E cada pedido paga uma ligação TLS nova, porque não há
 *pool* — a medição e o critério para acrescentar um estão em `REDE.md`.
+
+### 11.10 A replicação recuperada para `prototipo-2/`
+
+Decidido em setembro de 2026, logo a seguir a 11.9. Ao desfazer a reabertura
+(11.8), o repositório ficou **sem replicação em lado nenhum**: o Protótipo 1
+passou a ser um banco de um nó, o `cluster/` do projeto final é um *stub* que
+devolve `True`, e `prototipo-2/` estava vazia. A proposta pede eleição (RF-09),
+confirmação por maioria (RF-10) e continuar a servir com um servidor em baixo
+(RF-11) — nada disso existia.
+
+O código foi recuperado de `git show 3683a0f`, onde funcionava e estava testado,
+para `prototipo-2/`, que é onde o ROADMAP sempre disse que a etapa 2 vive. Foi
+pô-la dentro da etapa 1 que criou o problema que 11.8 desfez; repeti-lo seria
+aprender nada.
+
+**Porquê tal como estava, e não portado para FastAPI.** Um terço do código —
+`no.py`, `protocolo.py`, `concorrencia.py` — assenta em o estado do banco viver
+em memória do processo: o `Livro`, a tabela de `op_id` aplicados, a lista de
+operações da auditoria, os *locks* por conta. A pilha do Protótipo 1 usa o
+PostgreSQL como verdade e não guarda nada entre pedidos. São modelos opostos, e o
+esquema antigo diz porquê com todas as letras: *"uma tabela de saldos seria uma
+segunda fonte de verdade para o dinheiro, que é a classe de erro que este projeto
+existe para impedir"*. Recuperar custou horas; portar custaria um trimestre, e o
+trimestre não existe.
+
+**O preço, que é real:** o repositório passa a ter duas pilhas. `prototipo-2/`
+corre sobre `http.server` e `psycopg[binary]>=3.1`; `prototipo-1/` e
+`projeto-final/` correm sobre FastAPI e `psycopg2`. A progressão deixa de se ler
+como uma pilha só a crescer — que era o argumento de 11.8 — e passa a ler-se como
+duas linhas paralelas. Aceita-se porque a alternativa é ter uma etapa 2 por
+escrever, e a etapa 2 é o coração do trabalho.
+
+**Três nós, um por portátil.** Com dois nós a maioria continua a ser dois, por
+isso a queda de qualquer um deixa o outro em `somente_leitura` e não há failover
+para demonstrar. RF-11 só se cumpre sem asteriscos com três máquinas, e o grupo
+tem três pessoas. O passo a passo está em `prototipo-2/REDE.md`.
+
+**O que veio junto e é da etapa 3:** `cluster/falhas.py`, `ensaio.py`, `vista.py`
+e o `frontend/`. Vieram porque `no.py` importa os três e separá-los seria a
+reescrita que esta decisão evita — e porque a injeção de falhas é, de qualquer
+maneira, *como* se demonstra o failover. Fica dito no README da etapa em vez de
+escondido.
 
 ---
 
@@ -967,10 +1010,10 @@ uma conta num fornecedor. E cada pedido paga uma ligação TLS nova, porque não
 | F-05 | Extrato de operações | Protótipo 1 |
 | F-06 | Auditoria da soma dos saldos | Protótipo 1 |
 | F-07 | Operações concorrentes | Protótipo 1 |
-| F-08 | Funcionar com servidores fora do ar | Projeto final |
-| F-09 | Recuperar estado após reinício | Projeto final |
-| F-10 | Injeção de falhas | Projeto final |
-| F-11 | Visualizar o estado do sistema | Projeto final |
+| F-08 | Funcionar com servidores fora do ar | Protótipo 2 |
+| F-09 | Recuperar estado após reinício | Protótipo 2 |
+| F-10 | Injeção de falhas | Protótipo 2 (veio com o código, 11.10) |
+| F-11 | Visualizar o estado do sistema | Protótipo 2, no painel (11.10) |
 | F-12 | Cliente de linha de comando | **Por cobrir** (11.8) |
 
 ### Requisitos funcionais
@@ -985,14 +1028,14 @@ uma conta num fornecedor. E cada pedido paga uma ligação TLS nova, porque não
 | RF-06 | Protótipo 1 | Validação antes de gravar (secção 5) |
 | RF-07 | Protótipo 1 | Isolamento da transação (secção 5) |
 | RF-08 | Protótipo 1 | `FOR UPDATE` por conta, em ordem total (secção 5) |
-| RF-09 | Projeto final | Eleição por maioria (secção 8) |
-| RF-10 | Projeto final | Confirmação por maioria (secção 7) |
-| RF-11 | Projeto final | Failover; com 2 caídos, somente leitura (11.1) |
-| RF-12 | Projeto final | Recuperação por *replay* + reintegração (4.2, 7) |
+| RF-09 | Protótipo 2 | Eleição por maioria (secção 8) |
+| RF-10 | Protótipo 2 | Confirmação por maioria (secção 7) |
+| RF-11 | Protótipo 2 | Failover; com 2 caídos, somente leitura (11.1) |
+| RF-12 | Protótipo 2 | Recuperação por *replay* + reintegração (4.2, 7) |
 | RF-13 | Protótipo 1 | Deduplicação por `op_id` (3.3, 4.4) |
 | RF-14 | Protótipo 1 | `GET /auditoria` |
 | RF-15 | Projeto final | `GET /admin/metricas` |
-| RF-16 | Projeto final | `POST /admin/falha`, com sessão de ensaio exclusiva |
+| RF-16 | Protótipo 2 | `POST /admin/falha`, com sessão de ensaio exclusiva |
 | RF-17 | **Por cobrir** | Não há CLI em nenhuma etapa (11.8) |
 | RF-18 | — | Fora de âmbito, documentado (secção 12) |
 
@@ -1001,11 +1044,11 @@ uma conta num fornecedor. E cada pedido paga uma ligação TLS nova, porque não
 | ID | Critério | Etapa | Como se verifica |
 |---|---|---|---|
 | RNF-01 | A soma nunca muda | Todas | Teste de invariante sob milhares de operações sorteadas |
-| RNF-02 | Operação confirmada sobrevive | Projeto final | `SIGKILL` no primário a meio de transferências |
-| RNF-03 | Novo primário em menos de 2 s | Projeto final | Medição do tempo de failover |
+| RNF-02 | Operação confirmada sobrevive | Protótipo 2 | `SIGKILL` no primário a meio de transferências |
+| RNF-03 | Novo primário em menos de 2 s | Protótipo 2 | Medição do tempo de failover |
 | RNF-04 | 500 TPS local | Projeto final | *Benchmark*; meta de medição (11.3) |
 | RNF-05 | p99 abaixo de 200 ms | Projeto final | *Benchmark* com concorrência crescente |
-| RNF-06 | Mesma semente, mesmo resultado | Projeto final | Semente derivada por nó (8.1) |
+| RNF-06 | Mesma semente, mesmo resultado | Protótipo 2 | Semente derivada por nó (8.1) |
 | RNF-07 | Log estruturado e métricas | Projeto final | Secção 10 |
 | RNF-08 | Módulos com código, testes e documentação | As três | Estrutura em `CODESTYLE.md` |
 | RNF-09 | Um comando em Linux e macOS | Protótipo 1 | `docker compose up`. Sem instalar nada correm só os testes do domínio (11.8) |
