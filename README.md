@@ -33,9 +33,29 @@ O primário só responde ao cliente depois de a operação estar gravada em disc
 
 | Etapa | Pasta | Objetivo | Estado |
 |---|---|---|---|
-| Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto num só nó | **concluída** |
-| Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | não iniciada |
-| Projeto final | [`projeto-final/`](projeto-final/) | Prova, mede e mostra | não iniciada |
+| Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto, num ou em dois nós | **reconstruído**, 111 testes |
+| Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | **feita**, 305 testes |
+| Projeto final | [`projeto-final/`](projeto-final/) | Prova, mede e mostra | em curso |
+
+O Protótipo 1 foi entregue em setembro de 2026 com um banco correto num nó só, e
+reaberto logo a seguir para receber o PostgreSQL, a replicação, a injeção de falhas
+e um frontend. O efeito foi que o trabalho das etapas 2 e 3 passou a viver na pasta
+da etapa 1, e deixou de haver uma pasta a mostrar o banco de um nó só isolado — que
+é a razão de ser desta divisão.
+
+A decisão foi desfeita. O Protótipo 1 é hoje uma versão básica do projeto final:
+as mesmas camadas e a mesma pilha, sem replicação nem autenticação. O porquê, e os
+quatro desvios que isto custa, estão no README dessa pasta.
+
+A replicação, a eleição e o failover que tinham ficado dentro do Protótipo 1
+foram recuperados para `prototipo-2/`, que é onde a etapa 2 sempre devia ter
+estado. Corre sobre a biblioteca padrão, com três nós — um por portátil, um por
+integrante do grupo.
+
+| Quero ver | Comando |
+|---|---|
+| A etapa 1 como foi entregue | `git show 7b430e6` |
+| A etapa 1 reaberta, com replicação e failover | `git show 3683a0f` |
 
 Cada pasta é autocontida e tem o seu próprio README, com o que foi entregue e como
 o trabalho foi repartido entre os três.
@@ -44,37 +64,60 @@ o trabalho foi repartido entre os três.
 
 ## Documentação
 
+Cada etapa explica-se no seu próprio README. Não há um documento central, e é
+de propósito: o que descreve uma etapa vive na pasta dessa etapa, e assim não se
+pode desatualizar em relação ao código que descreve.
+
 | Documento | Para quê |
 |---|---|
-| [`docs/proposta.md`](docs/proposta.md) | A proposta entregue. Fonte dos requisitos F-xx, RF-xx e RNF-xx |
-| [`docs/SPECS.md`](docs/SPECS.md) | Como o sistema funciona: protocolos, formatos, API, rastreabilidade |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | O que se faz em cada etapa e subfase, e quem faz |
-| [`docs/CODESTYLE.md`](docs/CODESTYLE.md) | Estilo do código, do CLI e do painel |
-| [`docs/CONVENCOES.md`](docs/CONVENCOES.md) | Convenções de trabalho no repositório |
+| [`INSTALACAO.md`](INSTALACAO.md) | Pôr tudo a correr de raiz, etapa a etapa, e o que fazer quando não arranca |
+| [`prototipo-1/README.md`](prototipo-1/README.md) | O banco de um nó: rotas, base de dados, o caminho de uma escrita |
+| [`prototipo-1/REDE.md`](prototipo-1/REDE.md) | Os dois portáteis a servir contra a mesma base |
+| [`prototipo-2/README.md`](prototipo-2/README.md) | O cluster: replicação por log, eleição e failover |
+| [`prototipo-2/REDE.md`](prototipo-2/REDE.md) | Pôr o cluster a correr em três portáteis |
+| [`prototipo-2/UML.md`](prototipo-2/UML.md) | Os diagramas do cluster, e a ordem dos passos de uma escrita |
+| [`projeto-final/README.md`](projeto-final/README.md) | A pilha expandida: balanceador, autenticação, Docker, nuvem |
 
 ---
 
 ## Como executar
 
-Não é preciso instalar nada. Só Python 3.10 ou mais recente, da biblioteca padrão.
+Python 3.10 ou mais recente. Os testes do **domínio** correm sem instalar nada; o
+**servidor** precisa da pilha e de um PostgreSQL, ou de Docker.
 
 ```bash
 git clone https://github.com/PauloRPinedo/banco-distribuido.git
 cd banco-distribuido/prototipo-1
 
-python3 -m banco.servidor --id A --porta 8001
+# tudo de uma vez: nó, base e painel
+docker compose up --build
+#   painel  -> http://localhost:8080
+#   API     -> http://localhost:8001
 
-python3 -m banco.cli criar-conta alice --saldo 100.00
-python3 -m banco.cli criar-conta bob --saldo 0.00
-python3 -m banco.cli transferir alice bob 25.00
-python3 -m banco.cli auditoria
+# dois portáteis a servir contra a mesma base: ver prototipo-1/REDE.md
 
+# os 55 testes do domínio, sem instalar nada
 python3 -m unittest discover -s tests
+
+# os 111, com a pilha e uma base descartável
+pip install -r requisitos.txt
+createdb banco_teste
+BANCO_BD_TESTE=postgresql:///banco_teste python3 -m unittest discover -s tests
 ```
 
-A ausência de dependências é uma decisão, não um acaso: o sistema é demonstrado em
-2 ou 3 laptops diferentes numa rede local, e pôr o projeto a correr em cada máquina
-tem de ser `git clone` e executar.
+```bash
+curl -X POST localhost:8001/contas -H 'Content-Type: application/json' \
+     -d '{"conta":"alice","saldo_inicial":"100.00","op_id":"exemplo-01"}'
+curl -X POST localhost:8001/transferencias -H 'Content-Type: application/json' \
+     -d '{"de":"alice","para":"bob","valor":"25.00","op_id":"exemplo-02"}'
+curl localhost:8001/auditoria
+```
 
-Para o cluster em várias máquinas, ver o README do
-[`prototipo-2/`](prototipo-2/).
+**Os testes do domínio continuam a correr sem instalar nada**, e isso é uma
+decisão: a parte onde o dinheiro se move tem de ser verificável em qualquer
+laptop, sem venv para criar nem `pip install` para falhar. Os de integração —
+que falam com um servidor a sério e com uma base a sério — saltam-se sozinhos,
+com o motivo escrito, quando não há pilha nem base.
+
+Para o cluster em várias máquinas, o failover e o frontend completo, ver o README
+do [`projeto-final/`](projeto-final/).

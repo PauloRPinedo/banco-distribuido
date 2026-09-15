@@ -28,8 +28,16 @@ def para_centavos(texto: str) -> int:
 
     Aceita as duas separações decimais porque o cliente escreve em português na
     linha de comando e em inglês no corpo JSON.
+
+    Recusa o que não for texto. O dinheiro viaja como texto JSON e um número
+    é recusado com `valor_invalido`; sem esta guarda, `str(25.00)` daria "25.0"
+    e o número passaria em silêncio, dentro do único módulo que existe para o
+    impedir.
     """
-    limpo = str(texto).strip()
+    if not isinstance(texto, str):
+        raise ValorInvalido(
+            f"o valor tem de vir como texto, não {type(texto).__name__}: {texto!r}")
+    limpo = texto.strip()
     if not _FORMATO.match(limpo):
         raise ValorInvalido(f"valor mal formado: {texto!r}")
     try:

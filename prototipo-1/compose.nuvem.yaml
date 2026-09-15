@@ -1,0 +1,37 @@
+# O montagem dos dois portáteis: cada um corre o seu nó e o seu painel, e os
+# dois escrevem na mesma base gerida na nuvem.
+#
+#     cp .env.exemplo .env      # pôr NO_ID=A num portátil e NO_ID=B no outro
+#     docker compose -f compose.nuvem.yaml up --build
+#
+# Não há serviço de PostgreSQL aqui: a base é de fora e é a mesma para os dois.
+# Para um portátil só, com tudo dentro, é o compose.yaml do lado.
+#
+# Passo a passo, com o que fazer quando não arranca: REDE.md.
+
+services:
+  banco:
+    build: .
+    environment:
+      # Distingue os dois nós. Aparece em /saude e na cabeçalho do painel, e é
+      # o que permite saber, com dois ecrãs iguais à frente, qual é qual.
+      NO_ID: ${NO_ID:?define NO_ID=A num portátil e NO_ID=B no outro, no .env}
+      PORTA: "8001"
+      # A mesma linha de ligação nos dois portáteis. Traz ?sslmode=require.
+      BANCO_BD: ${BANCO_BD:?define BANCO_BD no .env com a linha de ligação da base}
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8001/saude')"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      banco:
+        condition: service_healthy

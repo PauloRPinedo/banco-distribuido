@@ -1,9 +1,9 @@
 """As quatro operações do banco, puras e determinísticas.
 
 Cada operação sabe três coisas: que contas toca, se é válida, e como se aplica.
-Separar `validar` de `aplicar` não é estilo — é a ordem obrigatória da secção 5
-de docs/SPECS.md: valida-se **antes** de gravar no WAL, para nunca se registar
-uma operação que vai ser recusada.
+Separar `validar` de `aplicar` não é estilo — é a ordem obrigatória de uma
+escrita: valida-se **antes** de gravar no WAL, para nunca se registar uma
+operação que vai ser recusada.
 """
 
 from dataclasses import dataclass
@@ -31,7 +31,7 @@ class Operacao:
         A ordem total dos locks nasce aqui, e não no ponto de uso. Quem adquire
         os locks percorre esta tupla e pronto: não tem de se lembrar da regra,
         e por isso não a pode esquecer. É o que torna impossível o deadlock de
-        alice->bob contra bob->alice (SPECS secção 5).
+        alice->bob contra bob->alice.
         """
         raise NotImplementedError
 

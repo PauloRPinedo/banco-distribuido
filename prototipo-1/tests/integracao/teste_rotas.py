@@ -1,234 +1,251 @@
-"""As rotas de cliente, faladas por HTTP a sério (subfase 1.6)."""
+"""As rotas de cliente, contra um servidor a correr."""
 
-import contextlib
-import io
-import json
-import tempfile
-import threading
 import unittest
-import urllib.error
-import urllib.request
-from pathlib import Path
 
-from banco.cluster.no import No
-from banco.interface.servidor_http import criar_servidor
+from tests.ajudas import CasoComServidor, exige_base, exige_pilha
 
 
-class BaseComServidor(unittest.TestCase):
+@exige_pilha
+@exige_base
+class TesteCaminhoFeliz(CasoComServidor):
 
-    def setUp(self):
-        temporario = tempfile.TemporaryDirectory()
-        self.addCleanup(temporario.cleanup)
-
-        self.no = No("A", Path(temporario.name))
-        self.addCleanup(self.no.fechar)
-
-        # Porta 0: o sistema escolhe uma livre. Fixar uma porta faria os testes
-        # falharem quando alguém tem o servidor da demonstração a correr.
-        self.servidor = criar_servidor(self.no, "127.0.0.1", 0)
-        self.porta = self.servidor.server_address[1]
-
-        # As limpezas correm ao contrário da ordem de registo, e esta tem de ser
-        # exatamente: parar o ciclo, esperar pela thread, fechar o socket.
-        self.addCleanup(self.servidor.server_close)
-
-        # poll_interval curto: o shutdown() espera por uma volta do ciclo, e o
-        # valor por omissão (0,5 s) somava meio segundo a cada teste.
-        thread = threading.Thread(target=self.servidor.serve_forever,
-                                  args=(0.01,), daemon=True)
-        thread.start()
-        self.addCleanup(thread.join, 5)
-        self.addCleanup(self.servidor.shutdown)
-
-    def pedir(self, metodo, caminho, corpo=None):
-        dados = json.dumps(corpo).encode("utf-8") if corpo is not None else None
-        pedido = urllib.request.Request(
-            f"http://127.0.0.1:{self.porta}{caminho}", data=dados, method=metodo,
-            headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(pedido, timeout=5) as resposta:
-                return resposta.status, json.loads(resposta.read())
-        except urllib.error.HTTPError as erro:
-            return erro.code, json.loads(erro.read())
-
-
-class TesteCaminhoFeliz(BaseComServidor):
-
-    def teste_criar_conta_devolve_201(self):
+    def teste_criar_conta_devolve_o_saldo_inicial(self):
         estado, corpo = self.pedir("POST", "/contas", {
-            "conta": "alice", "saldo_inicial": "100.00", "op_id": "c1"})
+            "conta": "alice", "saldo_inicial": "100.00", "op_id": "op-criar-01"})
 
-        self.assertEqual(estado, 201)
-        self.assertEqual(corpo["saldo_centavos"], 10000)
+        self.assertEqual((estado, corpo["saldo_centavos"]), (200, 10000))
 
-    def teste_ciclo_completo_de_operacoes(self):
-        self.pedir("POST", "/contas",
-                   {"conta": "alice", "saldo_inicial": "100.00", "op_id": "c1"})
-        self.pedir("POST", "/contas",
-                   {"conta": "bob", "saldo_inicial": "0", "op_id": "c2"})
+    def teste_criar_conta_devolve_o_saldo_em_texto(self):
+        # O cliente não tem de dividir por 100: dividir seria pôr um float no
+        # meio do dinheiro, que é o que o banco proíbe.
+        _, corpo = self.pedir("POST", "/contas", {
+            "conta": "alice", "saldo_inicial": "1234.56", "op_id": "op-criar-02"})
 
+        self.assertEqual(corpo["saldo"], "R$ 1.234,56")
+
+    def teste_saldo_inicial_e_zero_por_omissao(self):
+        _, corpo = self.pedir("POST", "/contas", {"conta": "bob", "op_id": "op-criar-03"})
+
+        self.assertEqual(corpo["saldo_centavos"], 0)
+
+    def teste_consultar_saldo_devolve_a_conta(self):
+        self.criar_conta("alice", "50.00")
+
+        estado, corpo = self.pedir("GET", "/contas/alice")
+
+        self.assertEqual((estado, corpo["saldo_centavos"]), (200, 5000))
+
+    def teste_deposito_soma_ao_saldo(self):
+        self.criar_conta("alice", "10.00")
+
+        _, corpo = self.pedir("POST", "/contas/alice/deposito",
+                              {"valor": "5.50", "op_id": "op-deposito-01"})
+
+        self.assertEqual(corpo["saldo_centavos"], 1550)
+
+    def teste_saque_subtrai_do_saldo(self):
+        self.criar_conta("alice", "10.00")
+
+        _, corpo = self.pedir("POST", "/contas/alice/saque",
+                              {"valor": "4.00", "op_id": "op-saque-01"})
+
+        self.assertEqual(corpo["saldo_centavos"], 600)
+
+    def teste_transferencia_move_o_dinheiro_das_duas_contas(self):
+        self.criar_conta("alice", "100.00")
+        self.criar_conta("bob", "0")
+
+        _, corpo = self.pedir("POST", "/transferencias", {
+            "de": "alice", "para": "bob", "valor": "25.00", "op_id": "op-transf-01"})
+
+        self.assertEqual(corpo["saldos_centavos"], {"alice": 7500, "bob": 2500})
+
+    def teste_extrato_traz_os_movimentos_pela_ordem_em_que_aconteceram(self):
+        self.criar_conta("alice", "100.00")
         self.pedir("POST", "/contas/alice/deposito",
-                   {"valor": "50.00", "op_id": "d1"})
-        self.pedir("POST", "/contas/alice/saque", {"valor": "20.00", "op_id": "s1"})
-        self.pedir("POST", "/transferencias",
-                   {"de": "alice", "para": "bob", "valor": "30.00", "op_id": "t1"})
+                   {"valor": "10.00", "op_id": "op-dep-02"})
+        self.pedir("POST", "/contas/alice/saque",
+                   {"valor": "30.00", "op_id": "op-saq-02"})
 
-        _, alice = self.pedir("GET", "/contas/alice")
-        _, bob = self.pedir("GET", "/contas/bob")
-        self.assertEqual(alice["saldo_centavos"], 10000 + 5000 - 2000 - 3000)
-        self.assertEqual(bob["saldo_centavos"], 3000)
+        _, corpo = self.pedir("GET", "/contas/alice/extrato")
 
-    def teste_extrato_lista_os_movimentos(self):
-        self.pedir("POST", "/contas",
-                   {"conta": "alice", "saldo_inicial": "100.00", "op_id": "c1"})
+        self.assertEqual([movimento["tipo"] for movimento in corpo["movimentos"]],
+                         ["criar_conta", "deposito", "saque"])
+
+    def teste_extrato_da_origem_mostra_a_transferencia_com_sinal_negativo(self):
+        self.criar_conta("alice", "100.00")
+        self.criar_conta("bob", "0")
+        self.pedir("POST", "/transferencias", {
+            "de": "alice", "para": "bob", "valor": "25.00", "op_id": "op-transf-02"})
+
+        _, corpo = self.pedir("GET", "/contas/alice/extrato")
+
+        self.assertEqual(corpo["movimentos"][-1]["valor_centavos"], -2500)
+
+    def teste_extrato_do_destino_mostra_a_contraparte(self):
+        self.criar_conta("alice", "100.00")
+        self.criar_conta("bob", "0")
+        self.pedir("POST", "/transferencias", {
+            "de": "alice", "para": "bob", "valor": "25.00", "op_id": "op-transf-03"})
+
+        _, corpo = self.pedir("GET", "/contas/bob/extrato")
+
+        self.assertEqual(corpo["movimentos"][-1]["contraparte"], "alice")
+
+    def teste_auditoria_nao_diverge_depois_de_uma_transferencia(self):
+        self.criar_conta("alice", "100.00")
+        self.criar_conta("bob", "0")
+        self.pedir("POST", "/transferencias", {
+            "de": "alice", "para": "bob", "valor": "25.00", "op_id": "op-transf-04"})
+
+        _, corpo = self.pedir("GET", "/auditoria")
+
+        self.assertEqual(corpo["divergencia_centavos"], 0)
+
+    def teste_auditoria_conta_os_depositos_e_os_saques(self):
+        self.criar_conta("alice", "100.00")
         self.pedir("POST", "/contas/alice/deposito",
-                   {"valor": "10.00", "op_id": "d1"})
+                   {"valor": "50.00", "op_id": "op-dep-03"})
+        self.pedir("POST", "/contas/alice/saque",
+                   {"valor": "20.00", "op_id": "op-saq-03"})
 
-        estado, corpo = self.pedir("GET", "/contas/alice/extrato")
+        _, corpo = self.pedir("GET", "/auditoria")
 
-        self.assertEqual(estado, 200)
-        self.assertEqual([m["tipo"] for m in corpo["movimentos"]],
-                         ["criar_conta", "deposito"])
-
-    def teste_auditoria_nao_diverge(self):
-        self.pedir("POST", "/contas",
-                   {"conta": "alice", "saldo_inicial": "100.00", "op_id": "c1"})
-
-        estado, corpo = self.pedir("GET", "/auditoria")
-
-        self.assertEqual(estado, 200)
-        self.assertFalse(corpo["divergente"])
-        self.assertEqual(corpo["total_centavos"], 10000)
-
-    def teste_estado_do_no(self):
-        estado, corpo = self.pedir("GET", "/interno/estado")
-
-        self.assertEqual(estado, 200)
-        self.assertEqual(corpo["no"], "A")
-        self.assertEqual(corpo["ultimo_indice"], 0)
+        self.assertEqual(corpo["total_centavos"], 13000)
 
 
-class TesteErros(BaseComServidor):
+@exige_pilha
+@exige_base
+class TesteErros(CasoComServidor):
 
-    def setUp(self):
-        super().setUp()
-        self.pedir("POST", "/contas",
-                   {"conta": "alice", "saldo_inicial": "100.00", "op_id": "c1"})
+    def teste_saque_maior_que_o_saldo_e_recusado(self):
+        self.criar_conta("alice", "10.00")
 
-    def teste_conta_inexistente_da_404(self):
-        estado, corpo = self.pedir("GET", "/contas/ninguem")
-
-        self.assertEqual(estado, 404)
-        self.assertEqual(corpo["erro"], "conta_inexistente")
-
-    def teste_conta_duplicada_da_409(self):
-        estado, corpo = self.pedir("POST", "/contas", {
-            "conta": "alice", "saldo_inicial": "0", "op_id": "c2"})
-
-        self.assertEqual(estado, 409)
-        self.assertEqual(corpo["erro"], "conta_duplicada")
-
-    def teste_saldo_insuficiente_da_422(self):
-        estado, corpo = self.pedir("POST", "/contas/alice/saque",
-                                   {"valor": "999.00", "op_id": "s1"})
+        estado, _ = self.pedir("POST", "/contas/alice/saque",
+                               {"valor": "500.00", "op_id": "op-sem-saldo"})
 
         self.assertEqual(estado, 422)
-        self.assertEqual(corpo["erro"], "saldo_insuficiente")
-        self.assertIn("R$ 100,00", corpo["mensagem"])
+
+    def teste_saque_recusado_diz_quanto_ha_e_quanto_se_pediu(self):
+        # A mensagem traz números concretos, não "operação inválida".
+        self.criar_conta("alice", "10.00")
+
+        _, corpo = self.pedir("POST", "/contas/alice/saque",
+                              {"valor": "500.00", "op_id": "op-sem-saldo-2"})
+
+        self.assertEqual(corpo["mensagem"],
+                         "alice tem R$ 10,00 e a operação pede R$ 500,00")
+
+    def teste_saque_recusado_nao_mexe_no_saldo(self):
+        self.criar_conta("alice", "10.00")
+        self.pedir("POST", "/contas/alice/saque",
+                   {"valor": "500.00", "op_id": "op-sem-saldo-3"})
+
+        _, corpo = self.pedir("GET", "/contas/alice")
+
+        self.assertEqual(corpo["saldo_centavos"], 1000)
+
+    def teste_conta_inexistente_e_404(self):
+        estado, _ = self.pedir("GET", "/contas/ninguem")
+
+        self.assertEqual(estado, 404)
+
+    def teste_conta_duplicada_e_409(self):
+        self.criar_conta("alice", "100.00")
+
+        estado, _ = self.pedir("POST", "/contas", {
+            "conta": "alice", "saldo_inicial": "50.00", "op_id": "op-duplicada"})
+
+        self.assertEqual(estado, 409)
+
+    def teste_conta_duplicada_nao_repoe_o_saldo(self):
+        # O upsert que o projeto final usa faria desta segunda criação um
+        # comando que repõe o saldo da alice. Dinheiro destruído (RNF-01).
+        self.criar_conta("alice", "100.00")
+        self.pedir("POST", "/contas", {
+            "conta": "alice", "saldo_inicial": "1.00", "op_id": "op-duplicada-2"})
+
+        _, corpo = self.pedir("GET", "/contas/alice")
+
+        self.assertEqual(corpo["saldo_centavos"], 10000)
 
     def teste_valor_como_numero_json_e_recusado(self):
-        # Aceitar um número faria o json.loads devolver um float, e um float em
-        # dinheiro é a origem do desvio que RNF-01 proíbe.
+        # O dinheiro viaja como texto. 25.00 seria um float.
+        self.criar_conta("alice", "100.00")
+
         estado, corpo = self.pedir("POST", "/contas/alice/deposito",
-                                   {"valor": 10.5, "op_id": "d1"})
+                                   {"valor": 25.00, "op_id": "op-numero"})
+
+        self.assertEqual((estado, corpo["erro"]), (400, "valor_invalido"))
+
+    def teste_valor_com_tres_casas_decimais_e_recusado(self):
+        self.criar_conta("alice", "100.00")
+
+        estado, _ = self.pedir("POST", "/contas/alice/deposito",
+                               {"valor": "10.005", "op_id": "op-tres-casas"})
 
         self.assertEqual(estado, 400)
-        self.assertEqual(corpo["erro"], "valor_invalido")
 
-    def teste_escrita_sem_op_id_e_recusada(self):
-        estado, corpo = self.pedir("POST", "/contas/alice/deposito",
-                                   {"valor": "10.00"})
+    def teste_valor_zero_e_recusado_num_deposito(self):
+        self.criar_conta("alice", "100.00")
+
+        estado, _ = self.pedir("POST", "/contas/alice/deposito",
+                               {"valor": "0", "op_id": "op-zero"})
 
         self.assertEqual(estado, 400)
-        self.assertIn("op_id", corpo["mensagem"])
 
-    def teste_rota_inexistente_da_404(self):
-        estado, corpo = self.pedir("GET", "/nao/existe")
+    def teste_id_de_conta_invalido_e_recusado(self):
+        estado, corpo = self.pedir("POST", "/contas", {
+            "conta": "Alice Silva", "op_id": "op-id-mau"})
+
+        self.assertEqual((estado, corpo["erro"]), (400, "valor_invalido"))
+
+    def teste_op_id_mal_formado_e_recusado(self):
+        self.criar_conta("alice", "100.00")
+
+        estado, corpo = self.pedir("POST", "/contas/alice/deposito",
+                                   {"valor": "1.00", "op_id": "curto"})
+
+        self.assertEqual((estado, corpo["erro"]), (400, "valor_invalido"))
+
+    def teste_corpo_sem_op_id_e_recusado_com_a_forma_de_erro_do_banco(self):
+        # E não com o 422 do FastAPI: há uma só forma de erro.
+        self.criar_conta("alice", "100.00")
+
+        estado, corpo = self.pedir("POST", "/contas/alice/deposito", {"valor": "1.00"})
+
+        self.assertEqual((estado, set(corpo)), (400, {"erro", "mensagem"}))
+
+    def teste_transferencia_para_a_mesma_conta_e_recusada(self):
+        self.criar_conta("alice", "100.00")
+
+        estado, _ = self.pedir("POST", "/transferencias", {
+            "de": "alice", "para": "alice", "valor": "1.00", "op_id": "op-mesma"})
+
+        self.assertEqual(estado, 400)
+
+    def teste_transferencia_para_conta_inexistente_e_recusada(self):
+        self.criar_conta("alice", "100.00")
+
+        estado, _ = self.pedir("POST", "/transferencias", {
+            "de": "alice", "para": "ninguem", "valor": "1.00", "op_id": "op-sem-destino"})
 
         self.assertEqual(estado, 404)
-        self.assertEqual(corpo["erro"], "rota_inexistente")
 
-    def teste_metodo_errado_na_rota_certa_da_404(self):
-        estado, _ = self.pedir("GET", "/transferencias")
+    def teste_transferencia_recusada_nao_mexe_na_origem(self):
+        self.criar_conta("alice", "100.00")
+
+        self.pedir("POST", "/transferencias", {
+            "de": "alice", "para": "ninguem", "valor": "1.00",
+            "op_id": "op-sem-destino-2"})
+        _, corpo = self.pedir("GET", "/contas/alice")
+
+        self.assertEqual(corpo["saldo_centavos"], 10000)
+
+    def teste_extrato_de_conta_inexistente_e_404(self):
+        estado, _ = self.pedir("GET", "/contas/ninguem/extrato")
 
         self.assertEqual(estado, 404)
-
-    def teste_corpo_que_nao_e_json_da_400(self):
-        pedido = urllib.request.Request(
-            f"http://127.0.0.1:{self.porta}/contas", data=b"isto nao e json",
-            method="POST", headers={"Content-Type": "application/json"})
-
-        try:
-            urllib.request.urlopen(pedido, timeout=5)
-            self.fail("devia ter falhado")
-        except urllib.error.HTTPError as erro:
-            self.assertEqual(erro.code, 400)
-
-
-class TesteFalhaDeDisco(BaseComServidor):
-    """O que acontece quando o WAL não consegue gravar.
-
-    Importa porque o cliente tem de conseguir distinguir isto de o servidor
-    estar em baixo: são dois problemas com soluções diferentes.
-    """
-
-    def teste_falha_a_gravar_da_500_e_nao_deixa_a_ligacao_cair(self):
-        self.pedir("POST", "/contas",
-                   {"conta": "alice", "saldo_inicial": "100.00", "op_id": "c1"})
-
-        def disco_cheio(_entrada):
-            raise OSError(28, "No space left on device")
-        self.no.wal.acrescentar = disco_cheio
-
-        # O rasto do erro é esperado e vai para stderr; aqui só faz ruído.
-        with contextlib.redirect_stderr(io.StringIO()):
-            estado, corpo = self.pedir("POST", "/contas/alice/deposito",
-                                       {"valor": "10.00", "op_id": "d1"})
-
-        self.assertEqual(estado, 500)
-        self.assertEqual(corpo["erro"], "erro_interno")
-
-    def teste_falha_a_gravar_nao_mexe_no_saldo(self):
-        self.pedir("POST", "/contas",
-                   {"conta": "alice", "saldo_inicial": "100.00", "op_id": "c1"})
-
-        def disco_cheio(_entrada):
-            raise OSError(28, "No space left on device")
-        self.no.wal.acrescentar = disco_cheio
-
-        with contextlib.redirect_stderr(io.StringIO()):
-            self.pedir("POST", "/contas/alice/deposito",
-                       {"valor": "10.00", "op_id": "d1"})
-
-        _, alice = self.pedir("GET", "/contas/alice")
-        self.assertEqual(alice["saldo_centavos"], 10000)
-
-
-class TesteIdempotencia(BaseComServidor):
-
-    def teste_repetir_a_transferencia_nao_move_duas_vezes(self):
-        self.pedir("POST", "/contas",
-                   {"conta": "alice", "saldo_inicial": "100.00", "op_id": "c1"})
-        self.pedir("POST", "/contas",
-                   {"conta": "bob", "saldo_inicial": "0", "op_id": "c2"})
-        corpo = {"de": "alice", "para": "bob", "valor": "25.00", "op_id": "t1"}
-
-        _, primeira = self.pedir("POST", "/transferencias", corpo)
-        _, segunda = self.pedir("POST", "/transferencias", corpo)
-
-        self.assertEqual(primeira, segunda)
-        _, alice = self.pedir("GET", "/contas/alice")
-        self.assertEqual(alice["saldo_centavos"], 7500)
 
 
 if __name__ == "__main__":
