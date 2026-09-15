@@ -23,3 +23,6 @@ node_modules/
 
 # prova de posse da sessão de ensaio, por operador
 .banco_ensaio
+
+# credenciais da base partilhada, por portátil
+*/.env
