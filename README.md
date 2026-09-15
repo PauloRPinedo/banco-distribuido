@@ -34,7 +34,7 @@ O primário só responde ao cliente depois de a operação estar gravada em disc
 | Etapa | Pasta | Objetivo | Estado |
 |---|---|---|---|
 | Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto, num ou em dois nós | **reconstruído**, 111 testes |
-| Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | **feita**, 305 testes |
+| Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | em curso |
 | Projeto final | [`projeto-final/`](projeto-final/) | Prova, mede e mostra | em curso |
 
 O Protótipo 1 foi entregue em setembro de 2026 com um banco correto num nó só, e
