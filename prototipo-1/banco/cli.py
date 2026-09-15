@@ -17,19 +17,18 @@ motivo errado.
 """
 
 import argparse
+import json
 import sys
-import uuid
+from pathlib import Path
 
-from banco.interface.cliente_http import (RecusaDoBanco, ServidorInacessivel,
-                                          pedir)
-from banco.interface.formato import dinheiro, erro, tabela
+from banco.comandos import (RECUSADO, SEM_SERVIDOR, USO_INCORRETO,
+                            auditoria, consultar_saldo, criar_conta, depositar,
+                            ensaio, estado, extrato, falha, sacar, transferir)
+from banco.interface.cliente_http import (Ligacao, RecusaDoBanco,
+                                          ServidorInacessivel)
+from banco.interface.formato import erro
 
 SERVIDOR_POR_OMISSAO = "http://127.0.0.1:8001"
-
-OK = 0
-RECUSADO = 1
-USO_INCORRETO = 2
-SEM_SERVIDOR = 3
 
 # O código do erro é para máquinas; o título é para quem está a ler o ecrã.
 TITULOS = {
@@ -38,6 +37,12 @@ TITULOS = {
     "saldo_insuficiente": "saldo insuficiente",
     "valor_invalido": "valor inválido",
     "rota_inexistente": "o servidor não conhece esse pedido",
+    "ensaio_tomado": "a sessão de ensaio está tomada",
+    "particao_simulada": "esse nó está isolado por uma falha injetada",
+    "nao_sou_primario": "esse nó não é o primário",
+    "sem_quorum": "a maioria do cluster não confirmou",
+    "somente_leitura": "o cluster está em somente leitura",
+    "armazem_indisponivel": "o servidor não conseguiu gravar",
 }
 
 SUGESTOES = {
@@ -48,7 +53,34 @@ SUGESTOES = {
     "saldo_insuficiente": "consulte o saldo com: python3 -m banco.cli saldo <id>",
     "valor_invalido": "escreva o valor com duas casas decimais, como 25.00",
     "rota_inexistente": "confirme que o servidor é da mesma etapa do cliente",
+    "nao_sou_primario": "use --cluster config/cluster.json e o cliente "
+                        "encontra o primário sozinho",
+    "sem_quorum": "veja quantos nós estão de pé: python3 -m banco.cli estado",
+    "somente_leitura": "arranque os nós em falta: python3 -m banco.cli estado",
+    "armazem_indisponivel": "veja o terminal do servidor; com a base em baixo, "
+                            "repita o comando quando ela voltar",
+    "ensaio_tomado": "espere, ou peça-lhe: python3 -m banco.cli ensaio largar",
+    "particao_simulada": "limpe a falha injetada: "
+                         "python3 -m banco.cli falha limpar --no <id>",
 }
+
+
+def _servidores(opcoes) -> list[str]:
+    """De onde sai a lista de nós a tentar.
+
+    `--cluster` ganha a `--servidor`: quem passou um ficheiro de cluster quer
+    falar com o cluster, não com um nó em particular.
+    """
+    if not opcoes.cluster:
+        return [opcoes.servidor]
+    caminho = Path(opcoes.cluster)
+    if not caminho.exists():
+        raise SystemExit(
+            f"  erro: não existe {caminho}\n"
+            f"  o ficheiro do cluster é local a cada máquina\n"
+            f"  → copie o exemplo: cp config/cluster.exemplo.json {caminho}")
+    bruto = json.loads(caminho.read_text(encoding="utf-8"))
+    return [f"http://{no['endereco']}:{no['porta']}" for no in bruto["nos"]]
 
 
 def _op_id() -> str:
@@ -60,93 +92,6 @@ def _op_id() -> str:
     return uuid.uuid4().hex
 
 
-# ----------------------------------------------------------------- comandos
-
-def criar_conta(opcoes) -> int:
-    resposta = pedir(opcoes.servidor, "POST", "/contas",
-                     {"conta": opcoes.conta, "saldo_inicial": opcoes.saldo,
-                      "op_id": _op_id()})
-    print(f"  conta {resposta['conta']} criada com "
-          f"{dinheiro(resposta['saldo_centavos'])}")
-    return OK
-
-
-def consultar_saldo(opcoes) -> int:
-    resposta = pedir(opcoes.servidor, "GET", f"/contas/{opcoes.conta}")
-    print(f"  {resposta['conta']}   {dinheiro(resposta['saldo_centavos'])}")
-    return OK
-
-
-def depositar(opcoes) -> int:
-    return _movimentar(opcoes, f"/contas/{opcoes.conta}/deposito", "depositado")
-
-
-def sacar(opcoes) -> int:
-    return _movimentar(opcoes, f"/contas/{opcoes.conta}/saque", "sacado")
-
-
-def _movimentar(opcoes, caminho: str, verbo: str) -> int:
-    resposta = pedir(opcoes.servidor, "POST", caminho,
-                     {"valor": opcoes.valor, "op_id": _op_id()})
-    print(f"  {verbo} · {resposta['conta']} fica com "
-          f"{dinheiro(resposta['saldo_centavos'])}")
-    return OK
-
-
-def transferir(opcoes) -> int:
-    resposta = pedir(opcoes.servidor, "POST", "/transferencias",
-                     {"de": opcoes.de, "para": opcoes.para,
-                      "valor": opcoes.valor, "op_id": _op_id()})
-    saldos = resposta["saldos_centavos"]
-    print(tabela(["conta", "saldo"],
-                 [[opcoes.de, dinheiro(saldos[opcoes.de])],
-                  [opcoes.para, dinheiro(saldos[opcoes.para])]],
-                 a_direita={1}))
-    return OK
-
-
-def extrato(opcoes) -> int:
-    resposta = pedir(opcoes.servidor, "GET", f"/contas/{opcoes.conta}/extrato")
-    movimentos = resposta["movimentos"]
-    if not movimentos:
-        print(f"  {opcoes.conta} não tem movimentos")
-        return OK
-    linhas = [[m["indice"], m["tipo"], m["contraparte"] or "—",
-               dinheiro(m["valor_centavos"]),
-               dinheiro(m["saldo_depois_centavos"])] for m in movimentos]
-    print(tabela(["#", "operação", "contraparte", "valor", "saldo"], linhas,
-                 a_direita={0, 3, 4}))
-    return OK
-
-
-def auditoria(opcoes) -> int:
-    resposta = pedir(opcoes.servidor, "GET", "/auditoria")
-    print(f"  total em circulação   {dinheiro(resposta['total_centavos'])}")
-    print(f"  esperado pelo log     {dinheiro(resposta['total_esperado_centavos'])}")
-    print(f"  contas {resposta['contas']} · operações {resposta['operacoes']}")
-    if resposta["divergente"]:
-        # Não pode acontecer. Se acontecer, é o achado mais importante do
-        # projeto e não pode passar despercebido numa linha de tabela.
-        print()
-        print(erro("a auditoria diverge",
-                   f"os saldos somam {dinheiro(resposta['divergencia_centavos'])} "
-                   "a mais do que o log explica",
-                   "guarde o wal.jsonl antes de mexer em mais nada"),
-              file=sys.stderr)
-        return RECUSADO
-    return OK
-
-
-def estado(opcoes) -> int:
-    resposta = pedir(opcoes.servidor, "GET", "/interno/estado")
-    print(tabela(["nó", "papel", "epoch", "índice", "commit", "contas"],
-                 [[resposta["no"], resposta["papel"], resposta["epoch"],
-                   resposta["ultimo_indice"], resposta["indice_commit"],
-                   resposta["contas"]]],
-                 a_direita={2, 3, 4, 5}))
-    return OK
-
-
 # ------------------------------------------------------------------- entrada
 
 def analisar(argumentos: list[str] | None = None) -> argparse.Namespace:
@@ -154,6 +99,9 @@ def analisar(argumentos: list[str] | None = None) -> argparse.Namespace:
         prog="banco.cli", description="Cliente do banco distribuído.")
     analisador.add_argument("--servidor", default=SERVIDOR_POR_OMISSAO,
                             help=f"por omissão: {SERVIDOR_POR_OMISSAO}")
+    analisador.add_argument("--cluster",
+                            help="ficheiro do cluster; o cliente encontra o "
+                                 "primário sozinho")
     comandos = analisador.add_subparsers(dest="comando", required=True)
 
     criar = comandos.add_parser("criar-conta", help="cria uma conta")
@@ -185,13 +133,32 @@ def analisar(argumentos: list[str] | None = None) -> argparse.Namespace:
     comandos.add_parser("auditoria",
                         help="soma os saldos e compara com o log"
                         ).set_defaults(funcao=auditoria)
-    comandos.add_parser("estado", help="estado do nó").set_defaults(funcao=estado)
+    comandos.add_parser("estado",
+                        help="estado de cada nó").set_defaults(funcao=estado)
+
+    sessao = comandos.add_parser(
+        "ensaio", help="sessão exclusiva para injetar falhas")
+    sessao.add_argument("acao", choices=["tomar", "largar", "estado"])
+    sessao.add_argument("--dono", default="", help="quem está a conduzir")
+    sessao.add_argument("--duracao", type=int, default=300,
+                        help="segundos até caducar (por omissão: 300)")
+    sessao.set_defaults(funcao=ensaio)
+
+    injecao = comandos.add_parser("falha", help="injeta uma falha num nó")
+    injecao.add_argument("tipo",
+                         choices=["derrubar", "isolar", "atraso", "limpar"])
+    injecao.add_argument("--no", default="A", help="o nó alvo")
+    injecao.add_argument("--de", default="",
+                         help="ids de quem isolar, separados por vírgula")
+    injecao.add_argument("--ms", type=int, default=0, help="atraso, em ms")
+    injecao.set_defaults(funcao=falha)
 
     return analisador.parse_args(argumentos)
 
 
 def main(argumentos: list[str] | None = None) -> int:
     opcoes = analisar(argumentos)
+    opcoes.ligacao = Ligacao(_servidores(opcoes))
     try:
         return opcoes.funcao(opcoes)
     except RecusaDoBanco as recusa:
@@ -206,12 +173,12 @@ def main(argumentos: list[str] | None = None) -> int:
     except ServidorInacessivel as falha:
         if falha.respondeu:
             print(erro("o servidor não conseguiu atender",
-                       f"{opcoes.servidor} {falha}",
+                       f"{opcoes.ligacao} {falha}",
                        "veja o terminal do servidor: o rasto do erro está lá"),
                   file=sys.stderr)
         else:
             print(erro("o servidor não respondeu",
-                       f"não foi possível falar com {opcoes.servidor} ({falha})",
+                       f"não foi possível falar com {opcoes.ligacao} ({falha})",
                        "confirme que está a correr: "
                        "python3 -m banco.servidor --id A --porta 8001"),
                   file=sys.stderr)
