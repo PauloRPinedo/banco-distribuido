@@ -1,0 +1,55 @@
+# Levanta o banco inteiro com um comando (RNF-09):
+#
+#     docker compose up --build
+#
+# Depois, o painel em http://localhost:8080 e a API em http://localhost:8001.
+#
+# Um nó e uma base, porque é um nó só que esta etapa tem. Os três nós, o
+# balanceador e a eleição do primário são das etapas seguintes.
+
+services:
+  postgres:
+    # Versão fixa: `postgres:latest` faria a demonstração depender do dia em
+    # que a imagem foi descarregada.
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: banco
+      POSTGRES_USER: banco
+      POSTGRES_PASSWORD: banco
+    volumes:
+      - ./db/esquema.sql:/docker-entrypoint-initdb.d/esquema.sql:ro
+      - dados-postgres:/var/lib/postgresql/data
+    healthcheck:
+      # Sem isto, o nó arranca antes de o esquema estar criado e morre. Um
+      # `depends_on` simples só espera pelo arranque do contentor, não pela
+      # base estar pronta a responder.
+      test: ["CMD-SHELL", "pg_isready -U banco -d banco"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  banco:
+    build: .
+    environment:
+      NO_ID: A
+      PORTA: "8001"
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: banco
+      PGUSER: banco
+      PGPASSWORD: banco
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - banco
+
+volumes:
+  dados-postgres:
