@@ -33,9 +33,12 @@ flowchart TB
 
 `dominio` nunca importa `repositorio`, `cluster`, `api` ni ninguna librería de
 red o de base de datos — recibe y devuelve estructuras de datos simples. Esta
-regla ya existía en Prototipo 1 (verificada literalmente con
-`grep` en `RELATORIO.md` sección 4: *"dominio/ importa rede ou disco? não"*) y
-se mantiene con el cambio de stack.
+regla ya existía en Prototipo 1 y se mantiene con el cambio de stack. Se
+verifica en un comando, desde `prototipo-1/`:
+
+```bash
+python3 -c "import banco.dominio.operacoes"   # no toca psycopg2 ni fastapi
+```
 
 `cluster` es el único módulo que conoce tanto a `dominio` (para aplicar
 operaciones) como a `repositorio` (para persistirlas) — es el punto donde se

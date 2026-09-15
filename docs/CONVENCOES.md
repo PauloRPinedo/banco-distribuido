@@ -51,38 +51,49 @@ exercita.
 
 ### 4. Dependências externas
 
-A base continua a ser a biblioteca padrão do Python 3.10+: `http.server`, `json`,
-`threading`, `socket`, `argparse`, `dataclasses`, `unittest`.
+A base é a biblioteca padrão do Python 3.10+: `json`, `threading`, `argparse`,
+`dataclasses`, `decimal`, `unittest`.
 
-**Há exatamente uma dependência externa**, decidida pelo grupo em setembro de 2026:
+**Há quatro dependências externas, e são as mesmas em todas as etapas**, decididas
+pelo grupo em setembro de 2026 (ver `SPECS.md` 11.8):
 
-| Dependência | Onde | Porquê |
-|---|---|---|
-| `psycopg[binary]>=3.1` | Só em `banco/persistencia/armazem_postgres.py` | O grupo decidiu que o PostgreSQL substitui o WAL em JSONL como armazém principal do log (ver `SPECS.md` 11.4) |
+| Dependência | Porquê |
+|---|---|
+| `fastapi` | O servidor HTTP e a validação dos corpos |
+| `uvicorn[standard]` | Quem corre o servidor |
+| `psycopg2-binary` | O acesso ao PostgreSQL, que guarda o estado |
+| `pydantic` | Os modelos dos corpos, que vêm com o FastAPI |
 
-A dependência está **confinada a um único módulo**, importada dentro da função que
-a usa e nunca no topo. A consequência é verificável num comando:
+Ter a mesma pilha nas três etapas é a decisão, e é o que faz a passagem de uma para
+a outra ser uma questão de acrescentar em vez de reescrever.
+
+**A regra de dependência que continua a valer**, e que é a que interessa: o domínio
+não conhece rede nem disco. É verificável num comando:
 
 ```bash
-python3 -c "import banco.cluster.no"   # não toca em psycopg
+cd prototipo-1
+python3 -c "import banco.dominio.operacoes"   # não toca em psycopg2 nem em fastapi
 ```
 
-**Os testes continuam a correr sem instalar nada.** `python3 -m unittest discover -s tests`
-usa um armazém em memória; os testes contra a base real saltam-se sozinhos, com o
-motivo escrito, se a variável `BANCO_BD_TESTE` não estiver definida. Continua a
-usar-se o `unittest` da biblioteca padrão — um `pytest` obrigatório significaria um
-`pip install` a mais em cada laptop, e quem o tiver instalado corre estes ficheiros
-sem alteração nenhuma.
+**Os testes do domínio continuam a correr sem instalar nada.**
+`python3 -m unittest discover -s tests` corre os 55 testes do domínio numa máquina
+limpa. Os 42 de integração — que falam com um servidor a sério e com uma base a
+sério — saltam-se sozinhos, com o motivo escrito, se a pilha não estiver instalada
+ou se `BANCO_BD_TESTE` não estiver definida.
+
+Continua a usar-se o `unittest` da biblioteca padrão. Um `pytest` obrigatório seria
+um `pip install` a mais em cada laptop, e quem o tiver instalado corre estes
+ficheiros sem alteração nenhuma.
 
 **O que se perdeu, dito sem rodeios:** pôr o *servidor* a correr numa máquina nova
-já não é só `git clone` e executar. Passa a ser `git clone`, instalar o PostgreSQL,
-correr `scripts/preparar_postgres.sh` e `pip install -r requisitos.txt`. Para o dia
-da demonstração há duas saídas de emergência: `compose.yaml`, que sobe um
-`postgres:16` com versão fixa, e `--armazem ficheiro`, que volta ao WAL em JSONL e
-faz o cluster funcionar na mesma.
+já não é só `git clone` e executar. É `git clone`, um PostgreSQL, e
+`pip install -r requisitos.txt`. A saída de emergência para o dia da demonstração é
+o `compose.yaml`, que sobe tudo — nó, base e painel — com um comando e com as
+versões fixas.
 
-Acrescentar **outra** dependência é decisão do grupo, discutida antes, nunca
-resolvida no meio de uma tarefa.
+Acrescentar uma **quinta** dependência é decisão do grupo, discutida antes, nunca
+resolvida no meio de uma tarefa. Foi por esta regra que os testes de integração
+falam por `urllib` em vez de pelo `TestClient` do FastAPI, que arrastaria o `httpx`.
 
 ---
 
@@ -102,13 +113,19 @@ apaga a evidência da progressão do trabalho, que é justamente o que a divisã
 etapas serve para mostrar. Erros encontrados tarde corrigem-se na etapa em curso e
 registam-se na secção "o que mudou face à etapa anterior" do README dessa etapa.
 
-> **Exceção decidida pelo grupo em setembro de 2026.** O Protótipo 1 foi reaberto
-> para receber, na mesma pasta, o PostgreSQL, a replicação entre laptops, a injeção
-> de falhas com sessão de ensaio exclusiva e um frontend web. Não é um erro
-> corrigido tarde: é um alargamento de âmbito pedido depois da entrega. A
-> justificação e o que se perde com isto estão em `SPECS.md` 11.6, e o README do
-> Protótipo 1 tem a secção "o que mudou face à etapa entregue". O estado original
-> continua a poder ver-se em `git show 7b430e6`.
+> **O Protótipo 1 foi reaberto e depois reconstruído (setembro de 2026).** Primeiro
+> reabriu-se a etapa entregue para lhe acrescentar, na mesma pasta, o PostgreSQL, a
+> replicação, a injeção de falhas e um frontend. O efeito foi que o trabalho das
+> etapas 2 e 3 passou a viver dentro da pasta da etapa 1, e deixou de haver uma
+> pasta a mostrar o banco de um nó só a funcionar isolado — que é a razão de ser
+> desta divisão.
+>
+> A decisão foi desfeita. O Protótipo 1 é agora uma versão básica do projeto final:
+> as mesmas camadas e a mesma pilha, sem replicação nem autenticação. A
+> justificação, e os quatro desvios que isto custa, estão em `SPECS.md` 11.8, e o
+> README da etapa tem a secção "o que mudou face à etapa entregue".
+>
+> A versão reaberta vê-se em `git show 3683a0f` e a entregue em `git show 7b430e6`.
 
 Antes de escrever código para uma etapa, ler a secção correspondente do
 [`ROADMAP.md`](ROADMAP.md).
@@ -133,21 +150,26 @@ coisa que se esquece.
 ## Comandos
 
 ```bash
-# um nó isolado (Protótipo 1)
+# tudo de uma vez: nó, base e painel
+docker compose up --build
+
+# só o nó, contra um PostgreSQL já a correr
 python3 -m banco.servidor --id A --porta 8001
 
-# um nó dentro do cluster (Protótipo 2 em diante)
-python3 -m banco.servidor --id A --config config/cluster.json
+# cliente: é o painel em http://localhost:8080, ou curl
+curl -X POST localhost:8001/contas -H 'Content-Type: application/json' \
+     -d '{"conta":"alice","saldo_inicial":"100.00","op_id":"exemplo-01"}'
+curl -X POST localhost:8001/transferencias -H 'Content-Type: application/json' \
+     -d '{"de":"alice","para":"bob","valor":"25.00","op_id":"exemplo-02"}'
+curl localhost:8001/auditoria
 
-# cliente
-python3 -m banco.cli criar-conta alice --saldo 100.00
-python3 -m banco.cli transferir alice bob 25.00
-python3 -m banco.cli auditoria
-python3 -m banco.cli estado
-
-# testes
+# testes: os do domínio sem instalar nada, os de integração com a pilha e uma base
 python3 -m unittest discover -s tests
+BANCO_BD_TESTE=postgresql:///banco_teste python3 -m unittest discover -s tests
 ```
+
+O dinheiro viaja como texto — `"25.00"`, nunca `25.00` — e o `op_id` é gerado pelo
+cliente. As duas regras são de `SPECS.md` 6.
 
 Os comandos correm de dentro da pasta da etapa (`prototipo-1/`, `prototipo-2/`,
 `projeto-final/`), não da raiz do repositório.

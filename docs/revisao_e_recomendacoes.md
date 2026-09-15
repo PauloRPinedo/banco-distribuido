@@ -5,6 +5,13 @@ código e nos documentos existentes, e o que precisa de uma decisão do grupo an
 de avançar para "frontend + backend + BD replicada". A decisão em si fica em
 [`adr/ADR-0001-persistencia-replicacao-implantacao.md`](adr/ADR-0001-persistencia-replicacao-implantacao.md).
 
+> **Documento histórico, de setembro de 2026.** As medições e os números que estão
+> aqui são do `prototipo-1/` de então, que foi reaberto e depois reconstruído
+> (`SPECS.md` 11.6 e 11.8). Fica como está, e não se atualiza: um documento de
+> feedback datado que se reescreve deixa de dizer o que se sabia na altura, que é
+> a única coisa que ele serve para dizer. O `prototipo-1/` de hoje está descrito
+> no seu próprio README.
+
 ---
 
 ## 1. Protótipo 1 — verificado, cumpre o que o README promete

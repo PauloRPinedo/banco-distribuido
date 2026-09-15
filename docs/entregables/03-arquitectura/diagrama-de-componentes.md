@@ -56,7 +56,7 @@ flowchart LR
 | Balanceador | Único punto de entrada público; encuentra al primario vigente y le reenvía las escrituras, reenvía lecturas a cualquier nodo; sigue `409 nao_sou_primario` | Nuevo — servicio propio, sin estado, no forma parte de ningún nodo |
 | API HTTP | Enrutamiento, validación de forma de la petición, traducción de errores | Evoluciona `interface/servidor_http.py` de Prototipo 1 |
 | Dominio bancario | Reglas de negocio: saldo, transferencia, conversión, invariantes | Evoluciona `dominio/` de Prototipo 1 |
-| Replicación y elección | Log de replicación, quórum, heartbeat, voto, fencing por epoch; también dispara la revisión periódica de interés (RF-23/RF-24) | Evoluciona `cluster/` de Prototipo 1 (etapa aún por construir) |
+| Replicación y elección | Log de replicación, quórum, heartbeat, voto, fencing por epoch; también dispara la revisión periódica de interés (RF-23/RF-24) | Por construir aquí. El `cluster/` que existió en la etapa 1 reabierta se ve en `git show 3683a0f`; el Prototipo 1 de hoy no tiene ninguno |
 | Repositorio Postgres | Persistir cuentas, operaciones y el log de replicación en tablas | Reemplaza `persistencia/wal.py` (WAL en archivo) por tablas |
 | Integraciones | Adaptador hacia sistemas externos para `TRANSFERENCIA_EXTERNA` (RF-25); en esta etapa es un *stub* simulado en el mismo proceso, no un cliente HTTP real | Nuevo — ver [`../04-modulos/mapa-de-modulos.md`](../04-modulos/mapa-de-modulos.md) |
 | Autenticación | Hash de contraseña y firma/verificación de token de sesión con llave simétrica (RF-26) | Nuevo — ver [`../04-modulos/mapa-de-modulos.md`](../04-modulos/mapa-de-modulos.md) |

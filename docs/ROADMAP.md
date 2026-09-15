@@ -22,14 +22,19 @@ Regras que valem para as três:
 
 # Etapa 1 — Protótipo 1
 
-> Um banco correto num só nó. — **entregue** em setembro de 2026, 103 testes a passar.
-> Ver [`prototipo-1/RELATORIO.md`](../prototipo-1/RELATORIO.md).
+> Um banco correto num só nó. — **entregue** em setembro de 2026, 103 testes a passar
+> (`git show 7b430e6`).
 >
-> **Reaberta a seguir à entrega**, por decisão do grupo, para receber o PostgreSQL, a
-> replicação entre laptops, a injeção de falhas com sessão de ensaio e o frontend web.
-> As subfases 2.1 a 2.9 e 3.1 executam-se **dentro de `prototipo-1/`**. O desvio e o
-> que se perde com ele estão em [`SPECS.md`](SPECS.md) 11.6; o estado entregue vê-se
-> em `git show 7b430e6`.
+> Foi **reaberta** a seguir à entrega para receber o PostgreSQL, a replicação, a
+> injeção de falhas e o frontend, e essa decisão foi depois **desfeita**: o trabalho
+> das etapas 2 e 3 tinha passado a viver na pasta da etapa 1, e deixara de haver uma
+> pasta a mostrar o banco de um nó só isolado. A versão reaberta vê-se em
+> `git show 3683a0f`.
+>
+> A etapa foi **reconstruída** sobre a pilha do projeto final — FastAPI, PostgreSQL,
+> as mesmas camadas — sem replicação nem autenticação. **97 testes a passar.** A
+> justificação e os quatro desvios que isto custa estão em [`SPECS.md`](SPECS.md)
+> 11.8; as alíneas estão em 1.9, abaixo.
 
 Ainda não há rede entre servidores, nem replicação, nem eleição. O que há é a base
 sem a qual nada disso faz sentido: o dinheiro tem de estar certo **antes** de ser
@@ -37,7 +42,11 @@ distribuído. Um erro de arredondamento ou uma corrida entre duas *threads* que
 passe despercebida nesta etapa vai parecer, na etapa 2, um erro de replicação — e
 procurar-se-á no sítio errado durante dias.
 
-**Cobre:** F-01 a F-07, F-12 · RF-01 a RF-08, RF-14, RF-17 · RNF-01, RNF-09
+**Cobre:** F-01 a F-07 · RF-01 a RF-08, RF-13, RF-14 · RNF-01, RNF-08, RNF-10
+
+F-12 e RF-17, o cliente de linha de comando, **deixaram de estar cobertos** com a
+reconstrução — o projeto final também não tem CLI. Está registado em
+[`SPECS.md`](SPECS.md) 11.8 e no README da etapa, em vez de omitido.
 
 ### 1.1 Fundação do repositório — *Paulo*
 
@@ -134,14 +143,43 @@ procurar-se-á no sítio errado durante dias.
 - **Etapa entregue quando:** um avaliador clona o repositório, corre um comando e
   faz uma transferência sem instalar nada
 
+> As alíneas 1.1 a 1.8 descrevem a etapa **tal como foi entregue** em `7b430e6`, e
+> ficam como estão: reescrevê-las apagaria a história que estas pastas existem para
+> mostrar. A reconstrução é 1.9.
+
+### 1.9 Reconstrução sobre a pilha do projeto final — *todos*
+
+> Porquê, e o que custa: [`SPECS.md`](SPECS.md) 11.8.
+
+- [x] `db/esquema.sql` com duas tabelas: `conta` e `operacao` (SPECS 4.4)
+- [x] `banco/dominio/` trazido do projeto final sem alterações, exceto a `para_centavos`
+      passar a recusar o que não é texto (SPECS 6)
+- [x] `banco/repositorio/`: `bloquear` com `FOR UPDATE` por ordem crescente de id, e
+      `inserir`/`atualizar` em vez do *upsert*, que repunha o saldo de uma conta já
+      existente
+- [x] `banco/servico/escrita.py`: a ordem obrigatória de SPECS 5 numa só função, com
+      o passo 2b — voltar a perguntar pelo `op_id` depois de tomar os *locks*
+- [x] `banco/api/`: as rotas de SPECS 6.1, dinheiro como texto, `op_id` no corpo, e a
+      tradução dos erros em tratadores registados na aplicação
+- [x] `tests/unitarios/` a correr sem instalar nada; `tests/integracao/` a falar com
+      um servidor a sério por `urllib`, e a saltar-se sozinhos com o motivo escrito
+- [x] Testes de concorrência que falham se o `FOR UPDATE` for retirado — verificado
+- [x] `frontend/` sem autenticação e sem *router*, com a paleta de `CODESTYLE.md` 8.1
+- [x] `compose.yaml` com *healthcheck*, para o nó não arrancar antes da base
+- [x] README com o que mudou, os modos de falha e o que deixou de estar coberto
+- **Pronto quando:** `docker compose up --build` levanta tudo, e uma transferência
+  feita no painel aparece na auditoria sem divergência
+
 ---
 
 # Etapa 2 — Protótipo 2
 
 > Sobrevive à queda de um servidor.
 >
-> **Executa-se dentro de `prototipo-1/`**, não em `prototipo-2/` (ver 11.6 do
-> [`SPECS.md`](SPECS.md)). Os comandos das subfases correm da pasta `prototipo-1/`.
+> **Feita, e vive em `projeto-final/`.** Chegou a executar-se dentro de
+> `prototipo-1/` (11.6), mas essa decisão foi desfeita — ver 11.8 do
+> [`SPECS.md`](SPECS.md). `prototipo-2/` continua vazia: a etapa não tem pasta
+> própria, tem o código do projeto final.
 
 O coração do trabalho. Aqui aparecem replicação, quórum, eleição e failover — e é
 aqui que se prova, com um servidor a ser morto ao vivo, que o dinheiro não se
@@ -218,7 +256,7 @@ perde.
 
 ### 2.8 Ensaio em 2 ou 3 laptops — *Paulo, com todos*
 
-- [x] Guia de rede: IPs, portas, *firewall* — [`prototipo-1/REDE.md`](../prototipo-1/REDE.md)
+- [x] Guia de rede: IPs, portas, *firewall* — [`projeto-final/GUIA-DESPLIEGUE.md`](../projeto-final/GUIA-DESPLIEGUE.md)
 - [x] **Testar cada endereço com `curl` antes de subir o cluster.** Com uma porta
       bloqueada, os sintomas — eleições sem fim, `epoch` a subir sozinho —
       parecem erro de protocolo e levam a procurar no sítio errado
@@ -323,7 +361,7 @@ manter-se como está (Python puro, ainda não iniciada).
 
 ### 3.1 Injeção de falhas — *Cristhian*
 
-> Antecipada para dentro de `prototipo-1/`: é o que permite derrubar um nó a partir
+> Feita dentro de `projeto-final/`: é o que permite derrubar um nó a partir
 > do CLI de qualquer laptop. Ganha uma exigência que não estava prevista — a **sessão
 > de ensaio exclusiva**, para que dois operadores não injetem falhas ao mesmo tempo.
 
@@ -348,7 +386,7 @@ manter-se como está (Python puro, ainda não iniciada).
 
 - [ ] `GET /painel`: um ficheiro HTML com CSS embutido, servido pelo nó, sem
       framework nem *build* (F-11)
-      — *existe um frontend equivalente em `prototipo-1/frontend/`, servido à
+      — *existe um frontend equivalente em `projeto-final/frontend/`, servido à
       parte e publicado na Vercel; o painel embutido no nó continua por fazer*
 - [x] O total em circulação em destaque, com o cronómetro de "inalterado há…"
 - [ ] Faixa de mandatos com os `epoch` e quem mandou em cada um

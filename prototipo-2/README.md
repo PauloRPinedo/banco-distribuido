@@ -2,9 +2,23 @@
 
 Segunda das três entregas do [Banco Distribuído](../README.md).
 
-**Estado:** não iniciada. Depende do [Protótipo 1](../prototipo-1/) estar fechado.
-As caixas por marcar estão no
-[`ROADMAP.md`](../docs/ROADMAP.md#etapa-2--protótipo-2).
+**Estado: esta pasta está vazia de propósito, e vai continuar assim.**
+
+O trabalho desta etapa — replicação por log, confirmação por maioria, eleição de
+primário e failover — foi feito, mas não aqui. Foi feito primeiro dentro de
+`prototipo-1/`, numa reabertura da etapa 1 que depois foi desfeita, e vive hoje em
+[`projeto-final/`](../projeto-final/). O porquê está em
+[`SPECS.md`](../docs/SPECS.md) 11.6 e 11.8.
+
+O que resta aqui é o desenho da etapa, que continua a valer e a ser útil para a
+defesa: o que tinha de ficar pronto, que decisões se tomaram e porquê. Os comandos
+abaixo descrevem a etapa **como foi desenhada**; para os comandos que correm hoje,
+ver o README do [`projeto-final/`](../projeto-final/).
+
+| Quero ver o código desta etapa | Comando |
+|---|---|
+| Como ficou, a correr | [`projeto-final/`](../projeto-final/) |
+| Como esteve dentro da etapa 1 | `git show 3683a0f` |
 
 ---
 
@@ -116,8 +130,9 @@ Os testes de failover são escritos em conjunto pelo **Cristhian** e pelo
 
 ## O que mudou face à etapa anterior
 
-*A preencher durante a etapa: o que foi acrescentado ao Protótipo 1 e o que teve de
-ser refeito. O código do Protótipo 1 fica intacto na sua pasta.*
+O que se acrescentou ao Protótipo 1 está descrito no README do
+[`projeto-final/`](../projeto-final/), que é onde este código foi parar. O
+Protótipo 1 voltou a ser um banco de um nó só, e não sabe nada de replicação.
 
 ---
 

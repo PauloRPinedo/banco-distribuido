@@ -30,7 +30,7 @@ estado de implementación. Complementa (no repite) a
 | RF-14 | `GET /auditoria` | [CU-08](plan-de-pruebas.md#cu-08) | no iniciado |
 | RF-15 | `GET /admin/metricas` | — | no iniciado |
 | RF-16 | `POST /admin/falla` | [CU-12](plan-de-pruebas.md#cu-12) | no iniciado |
-| RF-17 | Frontend web y `banco.cli` | Todos los CU con pantalla | no iniciado |
+| RF-17 | — | Todos los CU con pantalla | **sin cubrir**: no hay CLI en ninguna etapa (`docs/SPECS.md` 11.8) |
 | RF-18 | — (en revisión, ver `../01-requisitos/requisitos-funcionales.md`) | — | en revisión |
 | RF-19 | `POST /cuentas` (campo `moneda`) | [CU-01](plan-de-pruebas.md#cu-01) | no iniciado |
 | RF-20 | `POST /transferencias/conversion` | [CU-05](plan-de-pruebas.md#cu-05) | no iniciado |
