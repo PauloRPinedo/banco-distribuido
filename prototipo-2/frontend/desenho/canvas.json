@@ -1,0 +1,19 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html",       "x": 0,    "y": 0,    "w": 1000, "h": 720 },
+    { "file": "Operacoes.dc.html",  "x": 1100, "y": 0,    "w": 1080, "h": 720 },
+    { "file": "Extrato.dc.html",    "x": 0,    "y": 880,  "w": 1000, "h": 640 },
+    { "file": "Cluster.dc.html",    "x": 1100, "y": 880,  "w": 1080, "h": 720 },
+    { "file": "Contas.dc.html",     "x": 2280, "y": 0,    "w": 1000, "h": 600 },
+    { "file": "Transferir.dc.html", "x": 2280, "y": 700,  "w": 1000, "h": 640 }
+  ],
+  "annotations": [
+    { "id": "nota-ecras", "x": 0, "y": -160, "w": 520,
+      "text": "Quatro ecrãs, os mesmos que o frontend tem.\nAntes o desenho descrevia cinco pantalhas e o código empilhava tudo num scroll — dois artefactos a dizer coisas diferentes." },
+    { "id": "nota-cor", "x": 1100, "y": -160, "w": 460,
+      "text": "Cor significa desvio.\nUm cluster saudável é azul e branco; verde, âmbar e coral só aparecem quando algo saiu do normal." },
+    { "id": "nota-antigos", "x": 2280, "y": -160, "w": 460,
+      "text": "Estudos anteriores.\nFicam como registo do caminho: Contas e Transferir foram absorvidos pelo ecrã Operações." }
+  ],
+  "launch": { "view": "canvas" }
+}
