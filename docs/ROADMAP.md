@@ -256,7 +256,70 @@ perde.
 O sistema já funciona. Esta etapa serve para o demonstrar de forma controlada, para
 o medir com honestidade e para o apresentar.
 
-**Cobre:** F-10, F-11 · RF-15, RF-16 · RNF-04, RNF-05, RNF-07 a RNF-10
+**Cobre:** F-10, F-11 · RF-15, RF-16, RF-26 · RNF-04, RNF-05, RNF-07 a RNF-10
+
+> **Nota de alcance:** RF-19 a RF-25 (moedas múltiplas, produtos financeiros,
+> transferência externa) já estão especificados em
+> `docs/entregables/01-requisitos/requisitos-funcionais.md`, mas ainda não têm
+> subfase própria neste ROADMAP — fica registado como pendente de reconciliar,
+> não omitido.
+
+### 3.0 Pila expandida (Postgres, balanceador, frontend, autenticação, Docker/CI-CD)
+
+Decidido com o grupo: em vez de subir a pilha aos poucos, esta subfase junta
+o que as ADR-0002/0003 e `docs/entregables/` já tinham decidido mas nenhuma
+subfase cobria ainda. Fica em `projeto-final/`, com `prototipo-2/` a
+manter-se como está (Python puro, ainda não iniciada).
+
+#### 3.0.1 Persistência real com PostgreSQL — *a definir*
+
+- [ ] Cada nó com o seu próprio Postgres (contentor Docker), *schema* de
+      [`docs/entregables/05-modelo-de-datos/modelo-fisico.md`](../entregables/05-modelo-de-datos/modelo-fisico.md)
+- [ ] `repositorio/` substitui o WAL em JSONL por SQL contra esse Postgres
+- [ ] **Sem replicação nativa do motor** — `cluster/` continua a decidir o
+      quê replicar (Decisão 1 do `ADR-0001`); nada de `streaming replication`
+      nem serviço gerido
+- **Pronto quando:** matar o processo e reiniciar recupera o estado a partir
+  do Postgres local, e as bases dos 2-3 nós ficam com o mesmo conteúdo
+
+#### 3.0.2 Balanceador — *a definir*
+
+- [ ] Serviço próprio, sem estado: pergunta `/interno/estado` aos nós,
+      cacheia quem é o primário, reencaminha escritas e segue
+      `409 nao_sou_primario` + `primario_provavel`
+- [ ] Expõe as mesmas rotas públicas de um nó, para o cliente não notar
+      diferença
+- **Pronto quando:** matar o primário e o balanceador continua a encaminhar
+  corretamente para o novo, sem precisar de reiniciar
+
+#### 3.0.3 Frontend em React — *a definir*
+
+- [ ] *Scaffold* com Vite, reaproveitando a linha gráfica de
+      [`docs/entregables/02-casos-de-uso/mockups/estilo.css`](../entregables/02-casos-de-uso/mockups/estilo.css)
+- [ ] Fala com a API só através do balanceador, nunca direto com um nó
+- **Pronto quando:** um mockup vira ecrã real que faz uma transferência de
+  ponta a ponta
+
+#### 3.0.4 Autenticação (RF-26) — *a definir*
+
+- [ ] `password_hash` com `PBKDF2-HMAC-SHA256`, nunca a senha em claro nem
+      cifrada de forma reversível (RN-15)
+- [ ] Token assinado com `HMAC-SHA256` e uma chave simétrica partilhada por
+      todos os nós (RN-16)
+- [ ] Teste: token emitido por um nó valida-se **noutro**, sem nenhuma
+      chamada de rede entre eles
+- **Pronto quando:** o login funciona e um token continua válido depois de
+  um failover
+
+#### 3.0.5 Docker e CI/CD — *a definir*
+
+- [ ] `Dockerfile` do backend, do balanceador e do frontend
+- [ ] `docker-compose.yml` a subir os 3 nós + balanceador + frontend
+      localmente com um único comando
+- [ ] GitHub Actions: build das imagens em cada `push`, *deploy* por SSH às
+      instâncias configuradas
+- **Pronto quando:** um `git push` para `main` atualiza sozinho as instâncias
+  já configuradas, sem passo manual
 
 ### 3.1 Injeção de falhas — *Cristhian*
 

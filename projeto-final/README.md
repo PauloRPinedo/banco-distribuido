@@ -1,122 +1,64 @@
-# Projeto final — Prova, mede e mostra
+# Projeto final
 
-Terceira e última entrega do [Banco Distribuído](../README.md).
+Tercera etapa del [Banco Distribuido](../README.md) — pila expandida
+(Postgres, balanceador propio, frontend en React, autenticación, Docker y
+CI/CD) decidida en `docs/adr/ADR-0002` y `docs/entregables/`, más las
+subfases de `docs/ROADMAP.md` §"Etapa 3" (inyección de fallas, métricas,
+*benchmark*).
 
-**Estado:** não iniciada. Depende do [Protótipo 2](../prototipo-2/) estar fechado.
-As caixas por marcar estão no
-[`ROADMAP.md`](../docs/ROADMAP.md#etapa-3--projeto-final).
+`prototipo-2/` se mantiene vacía y tal como está en el ROADMAP (Python puro,
+sin Postgres ni frontend) — esta etapa no la reemplaza, la reutiliza cuando
+su protocolo de replicación esté listo (ver más abajo).
 
----
+## Qué hay aquí
 
-## Objetivo
+| Carpeta | Qué es |
+|---|---|
+| `backend/` | Un nodo (FastAPI + Postgres, en instancias separadas en real) — dominio, repositorio, integraciones, autenticación, servicio, api |
+| `balanceador/` | Encuentra al primario y reenvía — sin estado propio, por eso va en **AWS Lambda** en real (`Dockerfile.lambda` + `Mangum`), no en una instancia — ver `docs/adr/ADR-0002-...md` |
+| `frontend/` | React + Vite, sirve las pantallas de `docs/entregables/02-casos-de-uso/` — en real va en **Vercel**, no en una instancia |
+| `db/schema.sql` | El DDL de `docs/entregables/05-modelo-de-datos/modelo-fisico.md`, listo para cargar |
+| `config/cluster.exemplo.json` | Lista de nodos — la usan tanto el backend como el balanceador |
+| `GUIA-DESPLIEGUE.md` | Servicios, comandos, despliegue manual y CI/CD |
+| `GUIA-REPLICA-POSTGRESQL.md` | Por qué la réplica la hace la app, no Postgres |
 
-O sistema já funciona. Esta etapa serve para o **demonstrar de forma controlada**,
-para o **medir com honestidade** e para o **apresentar**.
-
-Controlada, porque até aqui as falhas eram provocadas à mão, matando processos. Com
-injeção de falhas, uma partição de rede passa a ser reproduzível num teste
-automático, sempre igual.
-
----
-
-## O que fica pronto
-
-- Injeção de falhas: derrubar, isolar da rede, atrasar mensagens
-- Testes de *split-brain* e de partição simétrica
-- Log estruturado com vocabulário fechado, e métricas
-- Painel web de monitorização, servido pelo próprio nó
-- *Benchmark* com vazão e latência, e a análise do estrangulamento
-- Suíte completa das três etapas, determinística por semente
-- Diagramas UML e documentação final
-
-**Requisitos cobertos:** F-10, F-11 · RF-15, RF-16 · RNF-04, RNF-05, RNF-07 a RNF-10
-
----
-
-## Dois pontos de honestidade
-
-**O painel web é um desvio à proposta.** A proposta exclui "interface gráfica web"
-do âmbito. O painel acrescenta-se com dois limites que o mantêm coerente com essa
-restrição: é **só de leitura** e é de **monitorização**, não de operação bancária.
-Existe para cumprir F-11 de forma demonstrável, e todas as operações continuam a
-passar pelo CLI.
-
-**RNF-04 é tratado como meta de medição, não como requisito bloqueante.** Uma
-implementação anterior deste mesmo desenho saturou perto de 270 transações por
-segundo, e as hipóteses de estrangulamento testadas — `fsync`, contenção de
-*locks*, serialização, CPU — foram todas descartadas: o tempo estava em espera, não
-em trabalho. O que se entrega é o número medido e a análise. Relatar a medição real
-vale mais do que ajustar o requisito para que ele pareça cumprido.
-
-Ambos os desvios estão justificados na secção 11 do [`SPECS.md`](../docs/SPECS.md).
-
----
-
-## Como executar
+## Cómo correrlo
 
 ```bash
 cd projeto-final
 cp config/cluster.exemplo.json config/cluster.json
-
-python3 -m banco.servidor --id A --config config/cluster.json &
-python3 -m banco.servidor --id B --config config/cluster.json &
-python3 -m banco.servidor --id C --config config/cluster.json &
+SECRET_KEY=$(openssl rand -hex 32) docker compose up --build
 ```
 
-**Painel:** abrir `http://<endereço-de-um-nó>:8001/painel`. Mostra o total em
-circulação, quem é o primário, o `epoch` e o estado de cada nó. Atualiza sozinho.
+Ver [`GUIA-DESPLIEGUE.md`](GUIA-DESPLIEGUE.md) para el resto (despliegue
+real y CI/CD).
 
-**Injetar falhas:**
+## Qué funciona hoy y qué falta — honesto, no omitido
 
-```bash
-# atrasar todas as respostas de um nó em 300 ms
-curl -X POST http://192.168.0.11:8001/admin/falha \
-     -d '{"tipo": "atraso", "ms": 300}'
+Probado de punta a punta con `docker compose up` (registro, login,
+crear cuenta, depositar, extracto, auditoría, todo a través del
+balanceador):
 
-# isolar o nó A dos nós B e C, sem mexer na firewall
-curl -X POST http://192.168.0.11:8001/admin/falha \
-     -d '{"tipo": "isolar", "de": ["B", "C"]}'
+- [x] `dominio/` (copiado de Prototipo 1) — RF-01 a RF-08
+- [x] Persistencia real en Postgres (`repositorio/`) para cuenta corriente
+- [x] Balanceador — encuentra al primario, sigue `409`; probado también como
+      función Lambda (evento de Function URL simulado, `Mangum` responde 200)
+- [x] Autenticación (RF-26) — hash de contraseña, token con llave simétrica,
+      validado sin llamada de red entre nodos
+- [x] Frontend React (login + consulta de saldo) hablando con el
+      balanceador
+- [x] Docker + `docker-compose.yml` para las 4 piezas en local
+- [x] Pipeline de CI/CD (pruebas + build + publicación en ghcr.io/ECR;
+      despliegue real pendiente de los secretos de AWS/SSH/Vercel)
 
-curl -X POST http://192.168.0.11:8001/admin/falha -d '{"tipo": "limpar"}'
-```
+**Pendiente** (ver `TODO`/`PENDIENTE.md` en el código, y `docs/ROADMAP.md`
+§3.0 y §3.1 en adelante):
 
-**Medir:**
-
-```bash
-python3 -m banco.bench --clientes 1,2,4,8,16,32
-python3 -m unittest discover -s tests
-```
-
----
-
-## Divisão do trabalho
-
-| Pessoa | Responsabilidade nesta etapa |
-|---|---|
-| **Cristhian Jesus Maylle Briceño** | **Falhas controladas.** `POST /admin/falha` com atraso, isolamento, queda e limpeza. Teste de *split-brain* — isolar o primário, deixar os outros eleger, verificar que o antigo não confirma nada ao voltar — e teste de partição simétrica em que nenhum lado tem maioria. Consolidação da suíte e determinismo por semente. |
-| **Jefferson Daniel Flores Montenegro** | **Medição e prova.** *Benchmark* com concorrência crescente, vazão em TPS e latência p50/p99, investigação do estrangulamento e registo dos números reais. Teste da invariante do dinheiro a atravessar as três etapas, e auditoria sob falha. |
-| **Paulo Sebastian Rojo Pinedo** | **Observabilidade e apresentação.** Log estruturado com o vocabulário fechado, `GET /admin/metricas`, painel web em `/painel` conforme o [`CODESTYLE.md`](../docs/CODESTYLE.md). Diagramas UML em Mermaid, README da raiz e documentação final. |
-
-A documentação final é revista pelos três. O dono desta etapa é o **Paulo**, por ser
-quem tem a apresentação e a documentação.
-
----
-
-## O que mudou face à etapa anterior
-
-*A preencher durante a etapa.*
-
----
-
-## Resultados
-
-*A preencher no fecho: tabela de vazão e latência por número de clientes, tempo de
-failover medido, número de testes a passar, e a tabela de rastreabilidade com o
-estado real de cada F-xx, RF-xx e RNF-xx.*
-
----
-
-## Limitações conhecidas
-
-*A preencher no fecho. Esta secção não se omite: a implementação é avaliada pelo
-que se sabe dela, não pelo que se promete.*
+- [ ] Replicación real entre nodos (`banco/cluster/nodo.py` es un *stub*:
+      todo nodo se comporta como primario porque no hay con quién competir
+      el rol) — **hoy, si matas el proceso de un nodo, los datos que solo
+      él tenía se pierden**; las 2-3 bases no quedan sincronizadas todavía
+- [ ] Multi-moneda, conversión, ahorro/plazo fijo, transferencia externa
+      (RF-19 a RF-25) — `banco/dominio/PENDIENTE.md`
+- [ ] Inyección de fallas, métricas, panel web, *benchmark* (`docs/ROADMAP.md`
+      3.1 a 3.4)
