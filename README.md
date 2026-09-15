@@ -33,16 +33,27 @@ O primário só responde ao cliente depois de a operação estar gravada em disc
 
 | Etapa | Pasta | Objetivo | Estado |
 |---|---|---|---|
-| Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto num só nó | **entregue**, e **reaberta** |
-| Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | feita **dentro do protótipo 1** |
-| Projeto final | [`projeto-final/`](projeto-final/) | Prova, mede e mostra | por iniciar |
+| Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto num só nó | **reconstruído**, 97 testes |
+| Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | feita, e vive em `projeto-final/` |
+| Projeto final | [`projeto-final/`](projeto-final/) | Prova, mede e mostra | em curso |
 
 O Protótipo 1 foi entregue em setembro de 2026 com um banco correto num nó só, e
-reaberto logo a seguir por decisão do grupo para receber o PostgreSQL, a
-replicação entre laptops, a injeção de falhas e um frontend web. O desvio face à
-regra de que uma etapa entregue não se altera está registado em
-[`docs/SPECS.md`](docs/SPECS.md) 11.6, e o estado entregue continua acessível em
-`git show 7b430e6`.
+reaberto logo a seguir para receber o PostgreSQL, a replicação, a injeção de falhas
+e um frontend. O efeito foi que o trabalho das etapas 2 e 3 passou a viver na pasta
+da etapa 1, e deixou de haver uma pasta a mostrar o banco de um nó só isolado — que
+é a razão de ser desta divisão.
+
+A decisão foi desfeita. O Protótipo 1 é hoje uma versão básica do projeto final:
+as mesmas camadas e a mesma pilha, sem replicação nem autenticação. O porquê, e os
+quatro desvios que isto custa, estão em [`docs/SPECS.md`](docs/SPECS.md) 11.8.
+
+`prototipo-2/` está vazia de propósito: a etapa 2 não tem pasta própria, tem o
+código do projeto final.
+
+| Quero ver | Comando |
+|---|---|
+| A etapa 1 como foi entregue | `git show 7b430e6` |
+| A etapa 1 reaberta, com replicação e failover | `git show 3683a0f` |
 
 Cada pasta é autocontida e tem o seu próprio README, com o que foi entregue e como
 o trabalho foi repartido entre os três.
@@ -63,34 +74,41 @@ o trabalho foi repartido entre os três.
 
 ## Como executar
 
-Python 3.10 ou mais recente. Os **testes** correm sem instalar nada; o
-**servidor** precisa do PostgreSQL, ou de `--armazem ficheiro`.
+Python 3.10 ou mais recente. Os testes do **domínio** correm sem instalar nada; o
+**servidor** precisa da pilha e de um PostgreSQL, ou de Docker.
 
 ```bash
 git clone https://github.com/PauloRPinedo/banco-distribuido.git
 cd banco-distribuido/prototipo-1
 
-# os testes correm sem instalar nada
+# tudo de uma vez: nó, base e painel
+docker compose up --build
+#   painel  -> http://localhost:8080
+#   API     -> http://localhost:8001
+
+# os 55 testes do domínio, sem instalar nada
 python3 -m unittest discover -s tests
 
-# o servidor precisa do PostgreSQL...
+# os 97, com a pilha e uma base descartável
 pip install -r requisitos.txt
-./scripts/preparar_postgres.sh a
-python3 -m banco.servidor --id A --porta 8001 --bd postgresql:///banco_a
-
-# ...ou não, se for preciso
-python3 -m banco.servidor --id A --porta 8001 --armazem ficheiro
-
-python3 -m banco.cli criar-conta alice --saldo 100.00
-python3 -m banco.cli transferir alice bob 25.00
-python3 -m banco.cli auditoria
+createdb banco_teste
+BANCO_BD_TESTE=postgresql:///banco_teste python3 -m unittest discover -s tests
 ```
 
-**Os testes continuam a correr sem instalar nada**, e isso é uma decisão: a suíte
-tem de funcionar em qualquer laptop, sem venv para criar nem `pip install` para
-falhar. O servidor passou a exigir o PostgreSQL quando o grupo decidiu que ele
-substituiria o WAL — o que se ganhou e o que se perdeu está em
-[`docs/SPECS.md`](docs/SPECS.md) 11.4.
+```bash
+curl -X POST localhost:8001/contas -H 'Content-Type: application/json' \
+     -d '{"conta":"alice","saldo_inicial":"100.00","op_id":"exemplo-01"}'
+curl -X POST localhost:8001/transferencias -H 'Content-Type: application/json' \
+     -d '{"de":"alice","para":"bob","valor":"25.00","op_id":"exemplo-02"}'
+curl localhost:8001/auditoria
+```
 
-Para o cluster em várias máquinas, o failover e o frontend, ver o README do
-[`prototipo-1/`](prototipo-1/).
+**Os testes do domínio continuam a correr sem instalar nada**, e isso é uma
+decisão: a parte onde o dinheiro se move tem de ser verificável em qualquer
+laptop, sem venv para criar nem `pip install` para falhar. Os de integração —
+que falam com um servidor a sério e com uma base a sério — saltam-se sozinhos,
+com o motivo escrito, quando não há pilha nem base. O que isso custa está em
+[`docs/SPECS.md`](docs/SPECS.md) 11.8.
+
+Para o cluster em várias máquinas, o failover e o frontend completo, ver o README
+do [`projeto-final/`](projeto-final/).

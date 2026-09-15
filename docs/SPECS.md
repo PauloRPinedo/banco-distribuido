@@ -155,6 +155,12 @@ durabilidade.
 
 ## 4. Persistência
 
+> **Âmbito.** 4.1 a 4.3 descrevem o armazém do **log replicado**, que é o que as
+> etapas 2 e 3 precisam e vive em `projeto-final/`. O Protótipo 1 não guarda um log:
+> guarda o estado, em duas tabelas, e está em 4.4. A diferença não é de arrumação —
+> um log replicado existe para outro nó o poder reproduzir, e no Protótipo 1 não há
+> outro nó.
+
 ### 4.1 WAL
 
 Ficheiro de texto, uma entrada de log por linha, formato JSONL. Só se acrescenta ao
@@ -182,11 +188,10 @@ a lado com `tail` responde à pergunta em segundos.
 4. Arrancar **sempre como réplica**, mesmo que este nó fosse o primário antes de
    cair. Quem manda decide-se por eleição, nunca pelo que o nó se lembra de si.
 
-> **Histórico.** Até setembro de 2026 o Protótipo 1 não tinha papel nenhum: com um
-> nó só, aceitava escritas sempre, o `epoch` ficava em 1 e o `estado.json` era
-> gravado sem decidir nada. Ao reabrir-se a etapa para receber a replicação (11.6),
-> o ponto 4 passou a aplicar-se tal como está escrito. O estado anterior vê-se em
-> `git show 7b430e6`.
+> **Histórico.** O Protótipo 1 nunca teve papel nenhum: com um nó só, aceita
+> escritas sempre e não há `epoch` para guardar. Durante a reabertura da etapa
+> (11.6) o ponto 4 chegou a aplicar-se lá dentro; com a reconstrução (11.8) voltou
+> a ser só das etapas seguintes. A versão reaberta vê-se em `git show 3683a0f`.
 
 **Não há snapshots.** O estado reconstrói-se sempre por *replay* completo do WAL.
 Numa demonstração o log tem centenas ou milhares de entradas e o *replay* demora
@@ -277,6 +282,57 @@ pertencer a outro id. Sem isto, dois nós apontados ao mesmo DSN partilham log e
 silêncio, e a corrupção que daí vem parece um erro de protocolo — perdem-se horas a
 procurar no sítio errado.
 
+### 4.4 Esquema do Protótipo 1
+
+Duas tabelas. `conta` diz quanto dinheiro existe agora; `operacao` diz tudo o que
+aconteceu. A auditoria (RF-14) soma as duas de maneiras independentes e compara — e é
+por serem independentes que concordarem prova alguma coisa.
+
+```sql
+CREATE TABLE conta (
+    id              VARCHAR(32) PRIMARY KEY CHECK (id ~ '^[a-z0-9_-]{1,32}$'),
+    saldo_centavos  BIGINT NOT NULL CHECK (saldo_centavos >= 0),
+    criada_em       DOUBLE PRECISION NOT NULL
+);
+
+CREATE TABLE operacao (
+    op_id             VARCHAR(64) PRIMARY KEY,
+    numero            BIGINT NOT NULL UNIQUE,
+    tipo              VARCHAR(20) NOT NULL
+                      CHECK (tipo IN ('criar_conta','deposito','saque','transferencia')),
+    conta_origem_id   VARCHAR(32) REFERENCES conta(id),
+    conta_destino_id  VARCHAR(32) REFERENCES conta(id),
+    valor_centavos    BIGINT NOT NULL CHECK (valor_centavos >= 0),
+    resposta          JSONB NOT NULL,
+    instante          DOUBLE PRECISION NOT NULL
+);
+CREATE SEQUENCE operacao_numero;
+```
+
+**`criada_em` e `instante` são `DOUBLE PRECISION`**, e não `TIMESTAMP`, porque 3.2 diz
+instante Unix. Com um `TIMESTAMP` sem fuso, dois portáteis com fusos diferentes leem
+valores diferentes da mesma linha, e a conversão passa a acontecer em dois sítios em
+vez de um.
+
+**`op_id` é `VARCHAR`**, e não `UUID`. O exemplo de 3.3 é `"3f1c8a2e"`, que não é um
+UUID; a coluna `UUID` apertaria mais do que esta especificação e devolveria um 500 do
+driver em vez de um `400 valor_invalido` explicado. O formato é validado na fronteira.
+
+**`resposta` guarda o corpo que o cliente recebeu**, tal e qual. É o "resultado
+guardado" de 3.3: recalculá-lo a partir dos saldos de agora daria uma resposta
+diferente se entretanto tivesse havido outras operações, e a retentativa deixaria de
+ser indistinguível do pedido original.
+
+**`numero` ordena, não conta.** É o `indice` de 3.3 no que importa aqui — dar uma
+ordem total às operações, para o extrato não depender de dois instantes empatarem.
+Não é contíguo: uma sequência do PostgreSQL não volta atrás quando a transação é
+revertida. A contiguidade de 3.3 existe para uma réplica detetar entradas em falta, e
+no Protótipo 1 não há réplica.
+
+**Não há coluna `estado`.** Sem commit em duas fases, a linha só existe se a transação
+confirmou. Um campo a dizer o mesmo seria um segundo sítio a poder divergir do
+primeiro.
+
 ---
 
 ## 5. Concorrência
@@ -298,24 +354,34 @@ todas as operações seguem a mesma ordem, o ciclo de espera é impossível. A o
 devolve as contas que toca já ordenadas, para que ninguém tenha de se lembrar da
 regra no ponto de uso.
 
-**Dentro de um nó** — um `lock` único de estado. Os *locks* por conta dizem *quais*
-operações podem correr em paralelo, mas aplicar uma operação mexe em estruturas
-partilhadas (`indice_commit`, extrato, tabela de `op_id`). Duas *threads* com
-contas diferentes corromperiam essas estruturas. O `lock` de estado serializa a
-aplicação — e também a leitura, porque uma consulta feita entre o débito e o
-crédito de uma transferência veria dinheiro desaparecido, violando RF-07.
+**Dentro de um nó** — depende de onde vive o estado, e é o único ponto em que as
+etapas divergem.
+
+Onde o estado está em memória (etapas 2 e 3), é preciso um `lock` único de estado:
+aplicar uma operação mexe em estruturas partilhadas (`indice_commit`, extrato,
+tabela de `op_id`) que duas *threads* com contas diferentes corromperiam. Esse
+`lock` serializa a aplicação e também a leitura, porque uma consulta feita entre o
+débito e o crédito de uma transferência veria dinheiro desaparecido (RF-07).
+
+No Protótipo 1 não há estado em memória para proteger: o estado é a base. O
+isolamento da transação dá a leitura consistente de RF-07, e os *locks* por conta
+são `SELECT ... FOR UPDATE` em vez de objetos em memória. O que não muda é quem
+decide a ordem — continua a ser `Operacao.contas_tocadas()`. Ver 11.8.
 
 ### Ordem obrigatória de uma escrita
 
 Nenhum destes passos pode trocar de lugar:
 
-1. `op_id` já aplicado? Devolver o resultado guardado e terminar.
-2. Adquirir os *locks* das contas envolvidas, por ordem crescente de id.
-3. **Validar**: as contas existem, o valor é positivo, o saldo chega.
-4. Gravar no WAL + `fsync`.
-5. Replicar e esperar pela maioria (secção 7).
-6. Aplicar ao estado, guardar o resultado do `op_id`, libertar os *locks*.
-7. Responder ao cliente.
+| | Etapas 2 e 3 | Protótipo 1 |
+|---|---|---|
+| 1 | `op_id` já aplicado? Devolver o resultado guardado e terminar | igual |
+| 2 | Adquirir os *locks* das contas envolvidas, por ordem crescente de id | `SELECT ... FOR UPDATE`, uma conta de cada vez, pela mesma ordem |
+| 2b | — | Voltar a perguntar pelo `op_id`, agora já serializado pelos *locks* |
+| 3 | **Validar**: as contas existem, o valor é positivo, o saldo chega | igual |
+| 4 | Gravar no WAL + `fsync` | `INSERT` em `operacao` |
+| 5 | Replicar e esperar pela maioria (secção 7) | não se aplica: há um nó só |
+| 6 | Aplicar ao estado, guardar o resultado do `op_id`, libertar os *locks* | Aplicar e guardar; os *locks* caem com o commit |
+| 7 | Responder ao cliente | igual, depois do commit |
 
 - A validação vem **antes** do log: não se replica uma operação que vai ser rejeitada.
 - O `fsync` vem **antes** do ACK, no primário e na réplica.
@@ -323,14 +389,23 @@ Nenhum destes passos pode trocar de lugar:
   operação confirmada sobreviver à queda imediata do primário.
 - Os *locks* só se libertam **depois** de aplicar (RF-08).
 
+O passo 2b não existia e faz falta nos dois desenhos: sem ele, duas retentativas
+simultâneas com o mesmo `op_id` veem ambas "ainda não aplicada" no passo 1 e ambas
+seguem em frente. No Protótipo 1 é visível porque o passo 1 lê fora de qualquer
+*lock*; com o `lock` de estado das outras etapas o problema não chega a acontecer,
+mas escrever o passo custa uma linha e torna a ordem verdadeira nos dois casos.
+
 ---
 
 ## 6. API HTTP
 
-Transporte HTTP com corpos JSON, servido por `http.server.ThreadingHTTPServer`.
-Escolheu-se HTTP em vez de sockets crus por uma razão operacional: quando o cluster
-não converge nos laptops, um `curl` diz em cinco segundos se o problema é a
-*firewall* ou o protocolo.
+Transporte HTTP com corpos JSON. Escolheu-se HTTP em vez de sockets crus por uma
+razão operacional: quando o cluster não converge nos laptops, um `curl` diz em cinco
+segundos se o problema é a *firewall* ou o protocolo.
+
+Quem serve depende da etapa — `http.server.ThreadingHTTPServer` no estado entregue,
+FastAPI e uvicorn no Protótipo 1 reconstruído e no projeto final (11.8). O contrato
+desta secção é o mesmo nos dois.
 
 Erros têm sempre a mesma forma:
 
@@ -347,6 +422,10 @@ Erros têm sempre a mesma forma:
 | `saldo_insuficiente` | 422 | A operação deixaria o saldo negativo |
 | `sem_quorum` | 503 | A maioria não confirmou dentro do tempo |
 | `somente_leitura` | 503 | O nó não vê a maioria e recusa escritas |
+
+Os três que falam de primário, maioria e réplica só existem onde há cluster. O
+Protótipo 1 devolve apenas `valor_invalido`, `conta_inexistente`, `conta_duplicada` e
+`saldo_insuficiente`.
 
 ### 6.1 Rotas de cliente
 
@@ -366,7 +445,11 @@ em dinheiro é a origem do desvio de arredondamento que RNF-01 proíbe. Exigir
 texto mantém a conversão para centavos a acontecer num sítio só, na fronteira
 (secção 3.1). Um número é recusado com `400 valor_invalido`.
 
-Toda escrita exige `op_id` no corpo. Uma réplica recusa escritas com:
+Toda escrita exige `op_id` no corpo — **no corpo**, e não num cabeçalho. O
+`X-Op-Id` que `projeto-final/` usa é um desvio que nunca chegou a ser registado aqui;
+o Protótipo 1 segue esta secção.
+
+O resto deste bloco só se aplica onde há cluster. Uma réplica recusa escritas com:
 
 ```json
 {"erro": "nao_sou_primario", "primario_provavel": "192.168.0.12:8001"}
@@ -377,6 +460,9 @@ As leituras são servidas pelo primário. Uma réplica só responde a leituras c
 `indice_aplicado`, para o cliente saber quão atrasado o dado pode estar.
 
 ### 6.2 Rotas internas (entre servidores)
+
+> Não existem no Protótipo 1: não há outro servidor a quem falar nem falhas para injetar. A única rota fora de 6.1 é
+> `GET /saude`, que diz que o processo está de pé.
 
 | Rota | Método | Papel |
 |---|---|---|
@@ -403,6 +489,9 @@ Não há autenticação nem cifragem: está fora do âmbito por decisão da prop
 coerente com o modelo de falhas — um nó pode morrer ou atrasar-se, mas não mente.
 
 ### 6.3 Rotas de administração
+
+> Não existem no Protótipo 1: não há outro servidor a quem falar nem falhas para injetar. A única rota fora de 6.1 é
+> `GET /saude`, que diz que o processo está de pé.
 
 | Rota | Método | Requisito |
 |---|---|---|
@@ -712,18 +801,25 @@ então a encaminhar a escrita ao primário como cliente puro, sem gravar nada
 localmente, o que não mexe na ordem da secção 5. Sem isto, o failover partia a página
 web justamente no momento que ela existe para mostrar.
 
-### 11.6 As etapas 2 e 3 dentro de `prototipo-1/`
+### 11.6 As etapas 2 e 3 dentro de `prototipo-1/` — revertido
 
-`CONVENCOES.md` diz que uma etapa entregue não se altera. O Protótipo 1 foi entregue
-em setembro de 2026 e reaberto logo a seguir para receber a replicação, a eleição, a
-injeção de falhas, a sessão de ensaio exclusiva e o frontend.
+**Esta decisão foi desfeita.** Ficou registada porque explica o estado do
+repositório entre setembro de 2026 e a reconstrução, e porque a razão por que foi
+desfeita é a mesma que a tornava má desde o início.
 
-Não é um erro corrigido tarde — é âmbito acrescentado depois da entrega, a pedido do
-grupo. **O que se perde é a evidência da progressão:** deixa de haver uma pasta que
-mostre o banco de um nó só a funcionar isolado, que era a razão de ser da divisão em
-etapas. A compensação possível é pequena mas real: o estado entregue continua
-acessível em `git show 7b430e6`, e o README da etapa tem uma secção "o que mudou face
-à etapa entregue" que diz linha a linha o que passou a ser diferente.
+O que se tinha decidido: o Protótipo 1, entregue em setembro de 2026, foi reaberto
+logo a seguir para receber a replicação, a eleição, a injeção de falhas, a sessão de
+ensaio exclusiva e o frontend — âmbito acrescentado depois da entrega, a pedido do
+grupo, e não um erro corrigido tarde.
+
+O custo estava escrito aqui mesmo, e acabou por ser o que pesou: **deixava de haver
+uma pasta que mostrasse o banco de um nó só a funcionar isolado**, que era a razão de
+ser da divisão em etapas. Com o trabalho da etapa 2 já a viver dentro da pasta da
+etapa 1, a progressão que as três pastas existem para mostrar tinha desaparecido.
+
+O Protótipo 1 foi reconstruído sobre a pilha do projeto final (ver 11.8). O estado
+reaberto continua acessível em `git show 3683a0f` e o estado entregue em
+`git show 7b430e6`.
 
 ### 11.7 Sessão de ensaio exclusiva
 
@@ -744,6 +840,50 @@ Duas alternativas foram recusadas:
 Morre com o primário, e ainda bem: quem tem a sessão é exatamente quem acabou de o
 matar, e voltar a tomá-la é um comando. A caducidade existe para o outro caso, o do
 operador que a toma e vai almoçar.
+
+### 11.8 O Protótipo 1 reconstruído sobre a pilha do projeto final
+
+Decidido em setembro de 2026, logo a seguir a 11.6 ser desfeita. O Protótipo 1
+passou a ser uma versão básica do projeto final em vez de um programa à parte: as
+mesmas camadas, a mesma pilha, os mesmos nomes, sem replicação nem autenticação.
+
+**Porquê reconstruir em vez de repor o estado entregue.** Repor `7b430e6` daria uma
+etapa 1 correta, mas escrita noutra tecnologia que a etapa 3: `http.server` contra
+FastAPI, WAL em JSONL contra PostgreSQL, `interface/` contra `api/`. Quem lesse as
+duas pastas de seguida veria dois programas, não um a crescer. Partilhando a pilha,
+a diferença entre as etapas passa a ser só o que foi acrescentado — que é
+exatamente o que se quer mostrar na defesa.
+
+**O que isto custa, e é caro.** Há quatro desvios a registar, todos contra regras
+que o próprio grupo escreveu:
+
+| Desvio | Contra | Porquê se aceita |
+|---|---|---|
+| Quatro dependências (`fastapi`, `uvicorn`, `psycopg2-binary`, `pydantic`) | `CONVENCOES.md` 4, "há exatamente uma dependência externa" | São as do projeto final, e a decisão é ter uma pilha só. Acrescentar uma quinta continua a ser decisão do grupo |
+| `dominio`, `repositorio`, `servico`, `api` | `CODESTYLE.md` 3, que fixa `dominio`, `persistencia`, `cluster`, `interface` | A árvore antiga tem um `cluster/` que aqui estaria vazio e um `persistencia/` que aqui é só SQL. A regra que importava — as setas apontam para dentro e o domínio não conhece rede nem disco — continua a valer, e é verificável: `python3 -c "import banco.dominio.operacoes"` não toca em `psycopg2` nem em `fastapi` |
+| Os testes de integração pedem `pip install` | `CONVENCOES.md` 4, "os testes correm sem instalar nada" | Os 55 do domínio continuam a correr numa máquina limpa; os 42 de integração saltam-se sozinhos com o motivo escrito. Era isso ou não ter testes de concorrência contra uma base real, que são os únicos que provam a invariante debaixo de carga |
+| Não há cliente de linha de comando | F-12 e RF-17 da proposta | O projeto final também não tem. Ficam por cobrir no repositório inteiro, e o único sítio onde existem é `git show 7b430e6`. Está dito no README da etapa, em vez de omitido |
+
+**O estado é estado, não log.** Esta etapa guarda duas tabelas — `conta`, com o
+saldo de agora, e `operacao`, com o histórico. Não guarda um log replicado com
+`indice` e `epoch`: isso é do protocolo das etapas seguintes, e as secções 4.1 a 4.3
+descrevem-no. O esquema está em 4.4.
+
+**O `op_id` viaja no corpo**, como 6.1 sempre disse. O cabeçalho `X-Op-Id` que
+`projeto-final/` usa é um desvio que nunca chegou a ser registado; o Protótipo 1 não
+o herda.
+
+**RF-07 e RF-08 passam a ser garantidos pelo PostgreSQL.** O estado entregue
+serializava as escritas com um *lock* único em memória. Aqui não há estado em
+memória para proteger: o isolamento da transação dá a leitura consistente (RF-07) e
+o `SELECT ... FOR UPDATE` sobre as contas tocadas, por ordem crescente de id, dá o
+conflito entre operações concorrentes (RF-08). A ordem vem de
+`Operacao.contas_tocadas()`, tal como no estado entregue — o que mudou foi quem
+guarda o *lock*, não quem decide a ordem.
+
+Isto não é delegar o consenso ao motor, que a proposta proíbe e o ADR-0001 recusa:
+é delegar o *lock* de linha dentro de um nó. A replicação entre nós continua por
+implementar à mão, na etapa seguinte.
 
 ---
 
@@ -773,11 +913,11 @@ operador que a toma e vai almoçar.
 | F-05 | Extrato de operações | Protótipo 1 |
 | F-06 | Auditoria da soma dos saldos | Protótipo 1 |
 | F-07 | Operações concorrentes | Protótipo 1 |
-| F-08 | Funcionar com servidores fora do ar | Protótipo 1 (11.6) |
-| F-09 | Recuperar estado após reinício | Protótipo 1 (11.6) |
-| F-10 | Injeção de falhas | Protótipo 1 (11.6) |
-| F-11 | Visualizar o estado do sistema | Protótipo 1, no frontend (11.5) |
-| F-12 | Cliente de linha de comando | Protótipo 1 |
+| F-08 | Funcionar com servidores fora do ar | Projeto final |
+| F-09 | Recuperar estado após reinício | Projeto final |
+| F-10 | Injeção de falhas | Projeto final |
+| F-11 | Visualizar o estado do sistema | Projeto final |
+| F-12 | Cliente de linha de comando | **Por cobrir** (11.8) |
 
 ### Requisitos funcionais
 
@@ -787,19 +927,19 @@ operador que a toma e vai almoçar.
 | RF-02 | Protótipo 1 | `GET /contas/{id}` |
 | RF-03 | Protótipo 1 | `POST /contas/{id}/deposito`, `/saque` |
 | RF-04 | Protótipo 1 | `POST /transferencias` |
-| RF-05 | Protótipo 1 | Transferência = uma única entrada de log (3.3) |
-| RF-06 | Protótipo 1 | Validação antes do log (secção 5) |
-| RF-07 | Protótipo 1 | `lock` de estado por nó (secção 5) |
-| RF-08 | Protótipo 1 | *Locks* por conta em ordem total (secção 5) |
-| RF-09 | Protótipo 1 | Eleição por maioria (secção 8) |
-| RF-10 | Protótipo 1 | Confirmação por maioria (secção 7) |
-| RF-11 | Protótipo 1 | Failover; com 2 caídos, somente leitura (11.1) |
-| RF-12 | Protótipo 1 | Recuperação por *replay* + reintegração (4.2, 7) |
-| RF-13 | Protótipo 1 | Deduplicação por `op_id` (3.3) |
+| RF-05 | Protótipo 1 | Débito e crédito numa só transação (4.4, secção 5) |
+| RF-06 | Protótipo 1 | Validação antes de gravar (secção 5) |
+| RF-07 | Protótipo 1 | Isolamento da transação (secção 5) |
+| RF-08 | Protótipo 1 | `FOR UPDATE` por conta, em ordem total (secção 5) |
+| RF-09 | Projeto final | Eleição por maioria (secção 8) |
+| RF-10 | Projeto final | Confirmação por maioria (secção 7) |
+| RF-11 | Projeto final | Failover; com 2 caídos, somente leitura (11.1) |
+| RF-12 | Projeto final | Recuperação por *replay* + reintegração (4.2, 7) |
+| RF-13 | Protótipo 1 | Deduplicação por `op_id` (3.3, 4.4) |
 | RF-14 | Protótipo 1 | `GET /auditoria` |
 | RF-15 | Projeto final | `GET /admin/metricas` |
-| RF-16 | Protótipo 1 | `POST /admin/falha`, com sessão de ensaio exclusiva |
-| RF-17 | Protótipo 1 | `banco.cli` |
+| RF-16 | Projeto final | `POST /admin/falha`, com sessão de ensaio exclusiva |
+| RF-17 | **Por cobrir** | Não há CLI em nenhuma etapa (11.8) |
 | RF-18 | — | Fora de âmbito, documentado (secção 12) |
 
 ### Requisitos não funcionais
@@ -807,12 +947,17 @@ operador que a toma e vai almoçar.
 | ID | Critério | Etapa | Como se verifica |
 |---|---|---|---|
 | RNF-01 | A soma nunca muda | Todas | Teste de invariante sob milhares de operações sorteadas |
-| RNF-02 | Operação confirmada sobrevive | Protótipo 1 | `SIGKILL` no primário a meio de transferências |
-| RNF-03 | Novo primário em menos de 2 s | Protótipo 1 | Medição do tempo de failover |
+| RNF-02 | Operação confirmada sobrevive | Projeto final | `SIGKILL` no primário a meio de transferências |
+| RNF-03 | Novo primário em menos de 2 s | Projeto final | Medição do tempo de failover |
 | RNF-04 | 500 TPS local | Projeto final | *Benchmark*; meta de medição (11.3) |
 | RNF-05 | p99 abaixo de 200 ms | Projeto final | *Benchmark* com concorrência crescente |
-| RNF-06 | Mesma semente, mesmo resultado | Protótipo 1 | Semente derivada por nó (8.1) |
+| RNF-06 | Mesma semente, mesmo resultado | Projeto final | Semente derivada por nó (8.1) |
 | RNF-07 | Log estruturado e métricas | Projeto final | Secção 10 |
 | RNF-08 | Módulos com código, testes e documentação | As três | Estrutura em `CODESTYLE.md` |
-| RNF-09 | Um comando em Linux e macOS | Protótipo 1 | Testes sem instalação; o servidor exige PostgreSQL (11.4) |
+| RNF-09 | Um comando em Linux e macOS | Protótipo 1 | `docker compose up`. Sem instalar nada correm só os testes do domínio (11.8) |
 | RNF-10 | Cada componente documenta os seus modos de falha | As três | README de cada etapa |
+
+**Duas linhas dizem "por cobrir", e é a sério.** F-12 e RF-17 — o cliente de linha
+de comando — não existem em nenhuma pasta desde que o Protótipo 1 foi reconstruído
+(11.8). O único sítio onde se veem é `git show 7b430e6`. Deixar a linha a apontar
+para uma etapa dava a tabela por cumprida quando não está.
