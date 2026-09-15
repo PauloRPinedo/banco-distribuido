@@ -1,26 +1,33 @@
-# Protótipo 1 — um banco correto num só nó
+# Protótipo 1 — um banco correto
 
 Trabalho de Computação Distribuída — USP/ICMC, São Carlos.
 
 **O que esta etapa faz, numa frase:** um banco com contas, depósitos, saques,
 transferências, extrato e auditoria, onde o dinheiro nunca é criado nem
 destruído — nem sequer quando vinte pedidos chegam à mesma conta ao mesmo
-tempo.
+tempo, vindos de **duas máquinas diferentes**.
 
-**Estado: 97 testes passam.** 55 correm sem instalar nada; os outros 42 pedem a
+**Estado: 111 testes passam.** 55 correm sem instalar nada; os outros 56 pedem a
 pilha do servidor e uma base de dados, e saltam-se sozinhos com o motivo
 escrito quando não as há.
 
-Não há replicação, eleição de primário nem tolerância a falhas. É deliberado: o
-dinheiro tem de estar certo **antes** de ser distribuído. Uma corrida entre dois
-pedidos que passe despercebida aqui vai parecer, na etapa seguinte, um erro de
-replicação — e procurar-se-á no sítio errado durante dias.
+Corre de duas maneiras: **um portátil**, com tudo dentro, ou **dois portáteis**
+a servir contra a mesma base ([`REDE.md`](REDE.md)). A segunda é a montagem dos
+ensaios, e funciona sem uma linha de código a mais porque o servidor não guarda
+estado nenhum em memória — quem serializa as escritas é o PostgreSQL.
+
+> **Não há replicação, eleição de primário nem tolerância a falhas**, e dois nós
+> contra a mesma base não são replicação: a base é um ponto único de falha. É
+> deliberado. O dinheiro tem de estar certo **antes** de ser distribuído — uma
+> corrida que passe despercebida aqui vai parecer, na etapa seguinte, um erro de
+> replicação, e procurar-se-á no sítio errado durante dias. RF-09 e RF-10 são da
+> etapa 2, e estão em `projeto-final/`.
 
 ---
 
 ## Como executar
 
-### Tudo de uma vez
+### Um portátil, tudo de uma vez
 
 ```bash
 docker compose up --build
@@ -28,13 +35,23 @@ docker compose up --build
 
 Painel em <http://localhost:8080>, API em <http://localhost:8001>.
 
+### Dois portáteis, contra a mesma base
+
+```bash
+cp .env.exemplo .env      # NO_ID=A num, NO_ID=B no outro; a mesma BANCO_BD
+docker compose -f compose.nuvem.yaml up --build
+```
+
+O passo a passo, a demonstração e a tabela de "quando não arranca" estão em
+[`REDE.md`](REDE.md).
+
 ### Os testes
 
 ```bash
 # Numa máquina limpa: 55 testes do domínio, sem instalar nada.
 python3 -m unittest discover -s tests
 
-# Com a pilha e uma base descartável: os 97.
+# Com a pilha e uma base descartável: os 111.
 pip install -r requisitos.txt
 createdb banco_teste
 BANCO_BD_TESTE=postgresql:///banco_teste python3 -m unittest discover -s tests
@@ -110,6 +127,10 @@ banco/
 └── servidor.py    o arranque do nó
 ```
 
+E, à volta: `compose.yaml` (um portátil, com a sua base dentro),
+`compose.nuvem.yaml` com `.env.exemplo` (dois portáteis, base partilhada),
+`scripts/preparar_base.sh` (cria as tabelas, uma vez) e [`REDE.md`](REDE.md).
+
 As setas apontam sempre para dentro: `api → servico → {dominio, repositorio}`.
 O domínio não importa nada de rede nem de disco, e é isso que permite testá-lo
 sem instalar nada.
@@ -138,6 +159,12 @@ percorre a tupla e pronto — não tem de se lembrar da regra, e por isso não a
 pode esquecer. É o que torna impossível o impasse de `alice→bob` contra
 `bob→alice`.
 
+**4. O servidor não guarda estado nenhum entre pedidos.** Cada pedido abre a sua
+ligação, e os *locks*, a chave de deduplicação e a ordem das operações vivem
+todos na base. É por isso que dois nós contra a mesma base ficam certos sem uma
+linha de código a mais: dois processos em máquinas diferentes pedem os mesmos
+*locks* que dois fios na mesma pediriam.
+
 ---
 
 ## Requisitos cobertos
@@ -149,10 +176,11 @@ pode esquecer. É o que torna impossível o impasse de `alice→bob` contra
 | **Fora desta etapa** | F-08 a F-11 · RF-09 a RF-13, RF-16 · RNF-02, RNF-03, RNF-06 — replicação, eleição e failover são das etapas seguintes |
 | **Não cobertos em lado nenhum** | F-12 e RF-17, o cliente de linha de comando. Ver "o que mudou", abaixo |
 
-RF-04 fala em contas "em servidores diferentes". Aqui só há um servidor, por isso
-está coberto no sentido de um nó só. Por desenho, todos os nós guardam todas as
-contas (SPECS 1), e é por isso que a transferência continuará a ser local ao
-primário quando houver três.
+**RF-04 fala em contas "em servidores diferentes", e com a montagem dos dois
+portáteis está coberto a sério:** uma transferência pedida ao nó B mexe em contas
+que o nó A também serve, e `teste_dois_nos.py` verifica-o. O que continua por
+cobrir é a *tolerância a falhas* — os dois nós partilham a base, e não sobrevivem
+à queda dela.
 
 ---
 
@@ -171,8 +199,9 @@ failover, injeção de falhas e um painel de cluster — era trabalho das etapas
 | `dominio`, `persistencia`, `cluster`, `interface` | `dominio`, `repositorio`, `servico`, `api` |
 | Locks em memória, por conta | `SELECT ... FOR UPDATE`, por conta |
 | Replicação, eleição, failover, injeção de falhas | Nada disso: é de outra etapa |
+| Cluster de três nós, cada um com a sua base | Um ou dois nós, contra **uma** base ([`REDE.md`](REDE.md)) |
 | Cliente de linha de comando | Painel web |
-| 305 testes | 97 testes |
+| 305 testes | 111 testes |
 
 **Quatro defeitos do projeto final que não vieram atrás**, todos encontrados a
 portar o código:
@@ -200,8 +229,11 @@ vazia. Estão em `git show 3683a0f`.
 | Situação | O que acontece | Porquê |
 |---|---|---|
 | O nó morre a meio de uma transferência | Nada se perde e nada fica a meio | A transação do PostgreSQL ou confirma tudo ou reverte tudo |
-| O nó morre | O banco fica fora do ar até voltar | Há um nó só. É a etapa 2 que resolve isto |
+| O nó morre | Com um nó, o banco fica fora do ar até voltar. Com dois, o outro continua a servir | Não é tolerância a falhas: é só não haver estado no processo que morreu |
+| **A base partilhada fica inacessível** | **Os dois nós devolvem 500** | É o ponto único de falha desta montagem. Não há réplica da base, e é a etapa 2 que resolve isto |
 | O PostgreSQL fica inacessível | Todas as rotas devolvem 500 | Não há repetição automática nem modo degradado |
+| Contra uma base na nuvem, cada pedido demora centenas de milissegundos | É conhecido e aceite | Uma ligação nova por pedido, e o custo é o TLS. Não há *pool*: `CONVENCOES.md` manda não o acrescentar sem um problema medido. O comando para o medir está em [`REDE.md`](REDE.md) |
+| Os dois portáteis com `NO_ID=A` | O banco funciona, mas os dois painéis dizem o mesmo | Só afeta quem está a olhar. A tabela de [`REDE.md`](REDE.md) diz como corrigir |
 | Duas criações **simultâneas** da mesma conta com o mesmo `op_id` | Uma responde 409 em vez de devolver o resultado guardado | Uma conta que ainda não existe não tem linha para bloquear, por isso as duas passam a validação e a chave primária decide. O dinheiro fica correto; só a resposta é que é feia |
 | Um pedido demora mais de 5 s a obter um lock | 500, em vez de ficar à espera para sempre | `lock_timeout`. Com a ordem total dos locks isto nunca devia acontecer; existe para um erro futuro aparecer como erro e não como suite pendurada |
 | Uma transação é revertida | O número da operação seguinte salta | Uma sequência não volta atrás. O número serve para ordenar, não para contar |
@@ -216,16 +248,23 @@ vazia. Estão em `git show 3683a0f`.
 
 | | |
 |---|---|
-| `banco/` | 1 231 linhas em 23 ficheiros |
-| `tests/` | 1 132 linhas, 97 testes |
-| `frontend/src/` | 609 linhas |
-| Suite completa | ~7,5 s |
+| `banco/` | 1 243 linhas em 23 ficheiros |
+| `tests/` | 1 458 linhas, 111 testes |
+| `frontend/src/` | 623 linhas |
+| Suite completa | ~21 s |
 | Módulo maior | `dominio/operacoes.py`, 230 linhas |
 
 **A prova de que os testes de concorrência provam alguma coisa:** tirando a
-cláusula `FOR UPDATE` de `banco/repositorio/contas.py`, seis testes falham e o
-total em circulação sobe de R$ 200,00 para R$ 201,00. Foi verificado, e é o
-resultado que dá sentido a todos os outros.
+cláusula `FOR UPDATE` de `banco/repositorio/contas.py`, cerca de nove testes
+falham — o número exato varia de execução para execução, porque são corridas e
+há sempre uma que passa por sorte. O que não varia é
+`teste_saques_concorrentes_nao_ultrapassam_o_saldo`, com um nó e com dois.
+
+Os números que se veem quando falha: com um nó, o total em circulação **sobe**
+de R$ 200,00 para R$ 201,00; com dois nós, passam os vinte saques em vez de dez
+e o total **desce** de R$ 200,00 para R$ 197,00. Dinheiro criado num caso e
+destruído no outro. Foi verificado, e é o resultado que dá sentido a todos os
+outros.
 
 ---
 

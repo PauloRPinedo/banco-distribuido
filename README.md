@@ -33,7 +33,7 @@ O primário só responde ao cliente depois de a operação estar gravada em disc
 
 | Etapa | Pasta | Objetivo | Estado |
 |---|---|---|---|
-| Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto num só nó | **reconstruído**, 97 testes |
+| Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto, num ou em dois nós | **reconstruído**, 111 testes |
 | Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | feita, e vive em `projeto-final/` |
 | Projeto final | [`projeto-final/`](projeto-final/) | Prova, mede e mostra | em curso |
 
@@ -86,10 +86,12 @@ docker compose up --build
 #   painel  -> http://localhost:8080
 #   API     -> http://localhost:8001
 
+# dois portáteis a servir contra a mesma base: ver prototipo-1/REDE.md
+
 # os 55 testes do domínio, sem instalar nada
 python3 -m unittest discover -s tests
 
-# os 97, com a pilha e uma base descartável
+# os 111, com a pilha e uma base descartável
 pip install -r requisitos.txt
 createdb banco_teste
 BANCO_BD_TESTE=postgresql:///banco_teste python3 -m unittest discover -s tests

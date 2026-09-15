@@ -167,8 +167,15 @@ reconstrução — o projeto final também não tem CLI. Está registado em
 - [x] `frontend/` sem autenticação e sem *router*, com a paleta de `CODESTYLE.md` 8.1
 - [x] `compose.yaml` com *healthcheck*, para o nó não arrancar antes da base
 - [x] README com o que mudou, os modos de falha e o que deixou de estar coberto
-- **Pronto quando:** `docker compose up --build` levanta tudo, e uma transferência
-  feita no painel aparece na auditoria sem divergência
+- [x] Dois portáteis a servir contra a mesma base gerida: `compose.nuvem.yaml`,
+      `.env.exemplo`, `scripts/preparar_base.sh` e o guião em `REDE.md` (11.9)
+- [x] `teste_dois_nos.py` com **dois processos** do servidor e `NO_ID` diferente,
+      a provar que os saques concorrentes de nós diferentes não ultrapassam o
+      saldo e que o mesmo `op_id` num nó e no outro move o dinheiro uma só vez
+- [x] O painel diz a que nó está ligado, para os dois ecrãs não serem iguais
+- **Pronto quando:** `docker compose up --build` levanta tudo, uma transferência
+  feita no painel aparece na auditoria sem divergência, e uma conta criada num
+  portátil vê-se no painel do outro
 
 ---
 
