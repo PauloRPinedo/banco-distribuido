@@ -7,8 +7,12 @@ transferências, extrato e auditoria, onde o dinheiro nunca é criado nem
 destruído — nem sequer quando vinte pedidos chegam à mesma conta ao mesmo
 tempo, vindos de **duas máquinas diferentes**.
 
+**Estado: 111 testes passam.** 55 correm sem instalar nada; os outros 56 pedem a
+pilha do servidor e uma base de dados, e saltam-se sozinhos com o motivo
+escrito quando não as há.
+
 Corre de duas maneiras: **um portátil**, com tudo dentro, ou **dois portáteis**
-a servir contra a mesma base. A segunda é a montagem dos
+a servir contra a mesma base ([`REDE.md`](REDE.md)). A segunda é a montagem dos
 ensaios, e funciona sem uma linha de código a mais porque o servidor não guarda
 estado nenhum em memória — quem serializa as escritas é o PostgreSQL.
 
@@ -34,7 +38,9 @@ Painel em <http://localhost:8080>, API em <http://localhost:8001>.
 
 O painel é composto como um **extrato impresso**, e não como um painel de
 administração: o documento ocupa a coluna larga, os controlos vivem num raio
-estreito ao lado, e o dinheiro é tipografado para se ler do fundo da sala.
+estreito ao lado, e o dinheiro é tipografado para se ler do fundo da sala. Usa
+dois tipos próprios, auto-alojados, para funcionar sem internet dentro do
+contentor.
 
 ### Dois portáteis, contra a mesma base
 
@@ -130,7 +136,7 @@ banco/
 
 E, à volta: `compose.yaml` (um portátil, com a sua base dentro),
 `compose.nuvem.yaml` com `.env.exemplo` (dois portáteis, base partilhada),
-`scripts/preparar_base.sh` (cria as tabelas, uma vez).
+`scripts/preparar_base.sh` (cria as tabelas, uma vez) e [`REDE.md`](REDE.md).
 
 As setas apontam sempre para dentro: `api → servico → {dominio, repositorio}`.
 O domínio não importa nada de rede nem de disco, e é isso que permite testá-lo
@@ -200,23 +206,26 @@ Quatro escolhas que valem a explicação:
 
 | Escolha | Porquê |
 |---|---|
-| `op_id` é a **chave primária**, e vem do cliente | É a deduplicação (SPECS 3.3): repetir a mesma escrita move o dinheiro uma vez só. A base garante-o, não só o código |
-| `op_id` é `VARCHAR`, não `UUID` | SPECS 3.3 dá `"3f1c8a2e"` como exemplo, que não é um UUID. A coluna `UUID` apertaria mais do que a especificação e devolveria um 500 do *driver* em vez de um `400 valor_invalido` explicado |
-| Os instantes são `DOUBLE PRECISION`, não `TIMESTAMP` | SPECS 3.2 diz instante Unix. Com um `TIMESTAMP` sem fuso, dois portáteis com fusos diferentes leem valores diferentes da mesma linha |
+| `op_id` é a **chave primária**, e vem do cliente | É a deduplicação: repetir a mesma escrita move o dinheiro uma vez só. A base garante-o, não só o código |
+| `op_id` é `VARCHAR`, não `UUID` | Um `op_id` como `"3f1c8a2e"` é válido e não é um UUID. A coluna `UUID` apertaria mais do que o necessário e devolveria um 500 do *driver* em vez de um `400 valor_invalido` explicado |
+| Os instantes são `DOUBLE PRECISION`, não `TIMESTAMP` | É um instante Unix. Com um `TIMESTAMP` sem fuso, dois portáteis com fusos diferentes leem valores diferentes da mesma linha |
 | `resposta` guarda o corpo que o cliente recebeu | Ao repetir o `op_id` devolve-se **isto**, verbatim. Recalcular a partir dos saldos de agora daria uma resposta diferente se entretanto houvesse outras operações |
 
 **Não há coluna `estado`.** Sem *commit* em duas fases, a linha só existe se a
 transação confirmou — um campo a dizer o mesmo seria um segundo sítio a poder
 divergir do primeiro.
 
-**`numero` ordena, não conta.** É o `indice` de SPECS 3.3 no que importa aqui:
-dar uma ordem total às operações, para o extrato não depender de dois instantes
-empatarem. Não é contíguo, porque uma sequência do PostgreSQL não volta atrás
+**`numero` ordena, não conta.** Serve para dar uma ordem total às operações,
+para o extrato não depender de dois instantes empatarem. Não é contíguo, porque uma sequência do PostgreSQL não volta atrás
 quando a transação é revertida.
 
 ---
 
 ## O caminho de uma escrita
+
+Uma transferência, do pedido HTTP ao commit. Os passos vão numerados, e
+**nenhum deles pode trocar de lugar** — a ordem é o que torna a invariante do
+dinheiro verdadeira.
 
 ```mermaid
 flowchart TD
@@ -245,7 +254,7 @@ flowchart TD
     R --> K
 ```
 
-**O passo 5 de SPECS 5 não aparece**, e é de propósito: é "replicar e esperar
+**O passo 5 não aparece**, e é de propósito: é "replicar e esperar
 pela maioria". Há um nó só, e a durabilidade é o commit do PostgreSQL. É a etapa
 2, em [`prototipo-2/`](../prototipo-2/), que o preenche.
 
@@ -307,6 +316,46 @@ cobrir é a *tolerância a falhas* — os dois nós partilham a base, e não sob
 
 ---
 
+## O que mudou face à etapa entregue
+
+Esta pasta foi reconstruída a partir de `projeto-final/`, para voltar a ser o que
+a divisão em etapas precisa que ela seja: um banco de um nó só, a funcionar
+isolado. O que lá estava antes — PostgreSQL como log replicado, eleição,
+failover, injeção de falhas e um painel de cluster — era trabalho das etapas 2 e
+3 a viver na pasta da etapa 1.
+
+| Antes (`git show 3683a0f`) | Agora |
+|---|---|
+| `http.server` da biblioteca padrão | FastAPI e uvicorn |
+| WAL em JSONL, com PostgreSQL como armazém do log | PostgreSQL como estado, em duas tabelas |
+| `dominio`, `persistencia`, `cluster`, `interface` | `dominio`, `repositorio`, `servico`, `api` |
+| Locks em memória, por conta | `SELECT ... FOR UPDATE`, por conta |
+| Replicação, eleição, failover, injeção de falhas | Nada disso: é de outra etapa |
+| Cluster de três nós, cada um com a sua base | Um ou dois nós, contra **uma** base ([`REDE.md`](REDE.md)) |
+| Cliente de linha de comando | Painel web |
+| 305 testes | 111 testes |
+
+**Quatro defeitos do projeto final que não vieram atrás**, todos encontrados a
+portar o código:
+
+1. `guardar` de contas era um *upsert*. Com o id a vir do cliente, criar a conta
+   `alice` outra vez passava a ser um comando que **repõe o saldo da alice**.
+2. Não havia `FOR UPDATE`. Vinte saques simultâneos de R$ 1,00 numa conta com
+   R$ 10,00 passavam os vinte.
+3. `para_centavos` fazia `str(texto)` antes de validar, e por isso aceitava em
+   silêncio o número `25.00`, que tem de ser recusado.
+4. A auditoria devolvia `Decimal`, porque `SUM()` sobre `BIGINT` devolve
+   `numeric` — um valor que ia acabar em vírgula flutuante ao ser serializado.
+
+**O que se perdeu, dito sem rodeios:** o cliente de linha de comando (F-12,
+RF-17) deixa de existir no repositório inteiro — `projeto-final/` também não
+tem. Quem quiser vê-lo tem de ir a `git show 7b430e6`. A replicação, a eleição
+e o failover, que existiam nesta pasta, também deixaram de existir em qualquer
+sítio. **Foram recuperadas**, para [`prototipo-2/`](../prototipo-2/), que é onde
+a etapa 2 sempre devia ter estado.
+
+---
+
 ## Modos de falha conhecidos (RNF-10)
 
 | Situação | O que acontece | Porquê |
@@ -315,7 +364,7 @@ cobrir é a *tolerância a falhas* — os dois nós partilham a base, e não sob
 | O nó morre | Com um nó, o banco fica fora do ar até voltar. Com dois, o outro continua a servir | Não é tolerância a falhas: é só não haver estado no processo que morreu |
 | **A base partilhada fica inacessível** | **Os dois nós devolvem 500** | É o ponto único de falha desta montagem. Não há réplica da base, e é a etapa 2 que resolve isto |
 | O PostgreSQL fica inacessível | Todas as rotas devolvem 500 | Não há repetição automática nem modo degradado |
-| Contra uma base na nuvem, cada pedido demora centenas de milissegundos | É conhecido e aceite | Uma ligação nova por pedido, e o custo é o TLS. Não há *pool*: `CONVENCOES.md` manda não o acrescentar sem um problema medido. O comando para o medir está em [`REDE.md`](REDE.md) |
+| Contra uma base na nuvem, cada pedido demora centenas de milissegundos | É conhecido e aceite | Uma ligação nova por pedido, e o custo é o TLS. Não há *pool*, e não se acrescenta um sem um problema medido. O comando para o medir está em [`REDE.md`](REDE.md) |
 | Os dois portáteis com `NO_ID=A` | O banco funciona, mas os dois painéis dizem o mesmo | Só afeta quem está a olhar. A tabela de [`REDE.md`](REDE.md) diz como corrigir |
 | Duas criações **simultâneas** da mesma conta com o mesmo `op_id` | Uma responde 409 em vez de devolver o resultado guardado | Uma conta que ainda não existe não tem linha para bloquear, por isso as duas passam a validação e a chave primária decide. O dinheiro fica correto; só a resposta é que é feia |
 | Um pedido demora mais de 5 s a obter um lock | 500, em vez de ficar à espera para sempre | `lock_timeout`. Com a ordem total dos locks isto nunca devia acontecer; existe para um erro futuro aparecer como erro e não como suite pendurada |

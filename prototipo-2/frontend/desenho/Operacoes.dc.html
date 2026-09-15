@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+           font-variant-numeric: tabular-nums; background: #F4F6FB; color: #191919; }
+    a { color: #1B4DB1; } a:hover { color: #14397F; }
+  </style>
+</helmet>
+<div style="padding: 40px; display: flex; flex-direction: column; gap: 24px; min-height: 620px">
+
+  <nav style="display: flex; gap: 4px; background: #FFFFFF; padding: 4px; border-radius: 999px; box-shadow: 0 1px 2px rgba(25,25,25,.04), 0 4px 16px rgba(25,25,25,.04); align-self: start">
+    <span style="color: #5C5C66; font-size: 15px; font-weight: 500; padding: 12px 24px">Início</span>
+    <span style="background: #1B4DB1; color: #FFFFFF; font-size: 15px; font-weight: 500; padding: 12px 24px; border-radius: 999px">Operações</span>
+    <span style="color: #5C5C66; font-size: 15px; font-weight: 500; padding: 12px 24px">Extrato</span>
+    <span style="color: #5C5C66; font-size: 15px; font-weight: 500; padding: 12px 24px">Cluster</span>
+  </nav>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
+
+    <div style="background: #FFFFFF; border-radius: 16px; padding: 24px; box-shadow: 0 1px 2px rgba(25,25,25,.04), 0 4px 16px rgba(25,25,25,.04); display: flex; flex-direction: column; gap: 16px">
+      <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">Nova conta</span>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99">identificador</span>
+        <div style="background: #F4F6FB; border-radius: 12px; padding: 16px; font-size: 15px">carla</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99">saldo inicial</span>
+        <div style="background: #F4F6FB; border-radius: 12px; padding: 16px; font-size: 15px">0,00</div>
+      </div>
+      <div style="background: #1B4DB1; color: #FFFFFF; font-size: 15px; font-weight: 500; padding: 16px; border-radius: 12px; text-align: center">Criar conta</div>
+    </div>
+
+    <div style="background: #FFFFFF; border-radius: 16px; padding: 24px; box-shadow: 0 1px 2px rgba(25,25,25,.04), 0 4px 16px rgba(25,25,25,.04); display: flex; flex-direction: column; gap: 16px">
+      <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">Depositar ou sacar</span>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99">conta</span>
+        <div style="background: #F4F6FB; border-radius: 12px; padding: 16px; font-size: 15px">alice</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99">valor</span>
+        <div style="background: #F4F6FB; border-radius: 12px; padding: 16px; font-size: 15px">25,00</div>
+      </div>
+      <div style="display: flex; gap: 8px">
+        <span style="background: #1B4DB1; color: #FFFFFF; font-size: 15px; font-weight: 500; padding: 16px 24px; border-radius: 12px">Depositar</span>
+        <span style="background: #FFFFFF; font-size: 15px; font-weight: 500; padding: 16px 24px; border-radius: 12px; box-shadow: 0 1px 2px rgba(25,25,25,.04), 0 4px 16px rgba(25,25,25,.04)">Sacar</span>
+      </div>
+    </div>
+
+    <div style="background: #FFFFFF; border-radius: 16px; padding: 24px; box-shadow: 0 1px 2px rgba(25,25,25,.04), 0 4px 16px rgba(25,25,25,.04); display: flex; flex-direction: column; gap: 16px">
+      <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">Transferir</span>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99">de</span>
+        <div style="background: #F4F6FB; border-radius: 12px; padding: 16px; font-size: 15px">alice</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99">para</span>
+        <div style="background: #F4F6FB; border-radius: 12px; padding: 16px; font-size: 15px">bob</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99">valor</span>
+        <div style="background: #FFFFFF; border: 2px solid #C4314B; border-radius: 12px; padding: 14px; font-size: 15px">9999,00</div>
+        <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #C4314B">alice tem R$ 75,00 e a operação pede R$ 9.999,00</span>
+      </div>
+      <div style="background: #1B4DB1; color: #FFFFFF; font-size: 15px; font-weight: 500; padding: 16px; border-radius: 12px; text-align: center">Transferir</div>
+      <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99">o erro fica ao lado do campo que o causou, não numa faixa no topo</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

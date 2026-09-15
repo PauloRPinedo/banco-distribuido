@@ -1,0 +1,13 @@
+# A única dependência externa do projeto, decidida pelo grupo em setembro de 2026.
+# O armazém do log passou a ser uma base de dados; o `--armazem ficheiro`
+# dispensa-a por completo, e é por isso que continua a haver uma só.
+#
+#   pip install -r requisitos.txt
+#
+# [binary] traz a libpq já compilada: sem isto seria preciso um compilador e o
+# libpq-dev em cada laptop, que é exatamente o género de obstáculo que este
+# projeto evita.
+#
+# Os testes NÃO precisam disto: `python3 -m unittest discover -s tests` corre
+# numa máquina limpa, com o armazém em memória.
+psycopg[binary]>=3.1

@@ -34,6 +34,15 @@ class TesteParaCentavos(unittest.TestCase):
         with self.assertRaises(ValorInvalido):
             para_centavos("-1.00")
 
+    def teste_valor_numerico_e_recusado(self):
+        # O dinheiro viaja como texto, e um número JSON é recusado com
+        # `valor_invalido`. Um float em dinheiro é a origem do desvio de
+        # arredondamento que RNF-01 proíbe.
+        for entrada in (25.00, 25, 0, True):
+            with self.subTest(entrada=entrada):
+                with self.assertRaises(ValorInvalido):
+                    para_centavos(entrada)
+
     def teste_texto_sem_numero_e_recusado(self):
         for entrada in ("", "abc", "1.2.3", "R$ 10", "1e5", " "):
             with self.subTest(entrada=entrada):

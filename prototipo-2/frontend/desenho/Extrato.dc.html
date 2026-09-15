@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+           font-variant-numeric: tabular-nums; background: #F4F6FB; color: #191919; }
+    a { color: #1B4DB1; } a:hover { color: #14397F; }
+  </style>
+</helmet>
+<div style="padding: 40px; display: flex; flex-direction: column; gap: 24px; min-height: 560px">
+  <nav style="display: flex; gap: 4px; background: #FFFFFF; padding: 4px; border-radius: 999px; box-shadow: 0 1px 2px rgba(25,25,25,.04), 0 4px 16px rgba(25,25,25,.04); align-self: start">
+    <span style="color: #5C5C66; font-size: 15px; font-weight: 500; padding: 12px 24px">Início</span>
+    <span style="color: #5C5C66; font-size: 15px; font-weight: 500; padding: 12px 24px">Operações</span>
+    <span style="background: #1B4DB1; color: #FFFFFF; font-size: 15px; font-weight: 500; padding: 12px 24px; border-radius: 999px">Extrato</span>
+    <span style="color: #5C5C66; font-size: 15px; font-weight: 500; padding: 12px 24px">Cluster</span>
+  </nav>
+
+  <div style="display: flex; align-items: baseline; justify-content: space-between">
+    <span style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em">Extrato de alice</span>
+    <span style="font-size: 28px; font-weight: 400">R$ 7.475,00</span>
+  </div>
+
+  <div style="background: #FFFFFF; border-radius: 16px; padding: 24px; box-shadow: 0 1px 2px rgba(25,25,25,.04), 0 4px 16px rgba(25,25,25,.04); display: flex; flex-direction: column; gap: 16px">
+    <div style="display: grid; grid-template-columns: 56px 1fr 1fr 140px 140px; gap: 24px">
+      <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99; text-align: right">#</span>
+      <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99">operação</span>
+      <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99">contraparte</span>
+      <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99; text-align: right">valor</span>
+      <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99; text-align: right">saldo</span>
+    </div>
+    <div style="height: 1px; background: rgba(25,25,25,.08)"></div>
+
+    <div style="display: grid; grid-template-columns: 56px 1fr 1fr 140px 140px; gap: 24px">
+      <span style="font-size: 15px; color: #8E8E99; text-align: right">1</span>
+      <span style="font-size: 15px">criar conta</span>
+      <span style="font-size: 15px; color: #8E8E99">—</span>
+      <span style="font-size: 15px; text-align: right">R$ 100,00</span>
+      <span style="font-size: 15px; text-align: right">R$ 100,00</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 56px 1fr 1fr 140px 140px; gap: 24px">
+      <span style="font-size: 15px; color: #8E8E99; text-align: right">3</span>
+      <span style="font-size: 15px">depósito</span>
+      <span style="font-size: 15px; color: #8E8E99">—</span>
+      <span style="font-size: 15px; text-align: right">R$ 50,00</span>
+      <span style="font-size: 15px; text-align: right">R$ 150,00</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 56px 1fr 1fr 140px 140px; gap: 24px">
+      <span style="font-size: 15px; color: #8E8E99; text-align: right">4</span>
+      <span style="font-size: 15px">saque</span>
+      <span style="font-size: 15px; color: #8E8E99">—</span>
+      <span style="font-size: 15px; text-align: right">-R$ 20,00</span>
+      <span style="font-size: 15px; text-align: right">R$ 130,00</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 56px 1fr 1fr 140px 140px; gap: 24px">
+      <span style="font-size: 15px; color: #8E8E99; text-align: right">5</span>
+      <span style="font-size: 15px">transferência</span>
+      <span style="font-size: 15px">bob</span>
+      <span style="font-size: 15px; text-align: right">-R$ 25,00</span>
+      <span style="font-size: 15px; text-align: right">R$ 105,00</span>
+    </div>
+  </div>
+
+  <span style="font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: #8E8E99">os números saltam de 1 para 3: o índice é do log do cluster inteiro, não desta conta</span>
+</div>
+</x-dc>
+</body>
+</html>
