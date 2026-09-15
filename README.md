@@ -33,9 +33,16 @@ O primário só responde ao cliente depois de a operação estar gravada em disc
 
 | Etapa | Pasta | Objetivo | Estado |
 |---|---|---|---|
-| Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto num só nó | **concluída** |
-| Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | não iniciada |
-| Projeto final | [`projeto-final/`](projeto-final/) | Prova, mede e mostra | não iniciada |
+| Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto num só nó | **entregue**, e **reaberta** |
+| Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | feita **dentro do protótipo 1** |
+| Projeto final | [`projeto-final/`](projeto-final/) | Prova, mede e mostra | por iniciar |
+
+O Protótipo 1 foi entregue em setembro de 2026 com um banco correto num nó só, e
+reaberto logo a seguir por decisão do grupo para receber o PostgreSQL, a
+replicação entre laptops, a injeção de falhas e um frontend web. O desvio face à
+regra de que uma etapa entregue não se altera está registado em
+[`docs/SPECS.md`](docs/SPECS.md) 11.6, e o estado entregue continua acessível em
+`git show 7b430e6`.
 
 Cada pasta é autocontida e tem o seu próprio README, com o que foi entregue e como
 o trabalho foi repartido entre os três.
@@ -56,25 +63,34 @@ o trabalho foi repartido entre os três.
 
 ## Como executar
 
-Não é preciso instalar nada. Só Python 3.10 ou mais recente, da biblioteca padrão.
+Python 3.10 ou mais recente. Os **testes** correm sem instalar nada; o
+**servidor** precisa do PostgreSQL, ou de `--armazem ficheiro`.
 
 ```bash
 git clone https://github.com/PauloRPinedo/banco-distribuido.git
 cd banco-distribuido/prototipo-1
 
-python3 -m banco.servidor --id A --porta 8001
+# os testes correm sem instalar nada
+python3 -m unittest discover -s tests
+
+# o servidor precisa do PostgreSQL...
+pip install -r requisitos.txt
+./scripts/preparar_postgres.sh a
+python3 -m banco.servidor --id A --porta 8001 --bd postgresql:///banco_a
+
+# ...ou não, se for preciso
+python3 -m banco.servidor --id A --porta 8001 --armazem ficheiro
 
 python3 -m banco.cli criar-conta alice --saldo 100.00
-python3 -m banco.cli criar-conta bob --saldo 0.00
 python3 -m banco.cli transferir alice bob 25.00
 python3 -m banco.cli auditoria
-
-python3 -m unittest discover -s tests
 ```
 
-A ausência de dependências é uma decisão, não um acaso: o sistema é demonstrado em
-2 ou 3 laptops diferentes numa rede local, e pôr o projeto a correr em cada máquina
-tem de ser `git clone` e executar.
+**Os testes continuam a correr sem instalar nada**, e isso é uma decisão: a suíte
+tem de funcionar em qualquer laptop, sem venv para criar nem `pip install` para
+falhar. O servidor passou a exigir o PostgreSQL quando o grupo decidiu que ele
+substituiria o WAL — o que se ganhou e o que se perdeu está em
+[`docs/SPECS.md`](docs/SPECS.md) 11.4.
 
-Para o cluster em várias máquinas, ver o README do
-[`prototipo-2/`](prototipo-2/).
+Para o cluster em várias máquinas, o failover e o frontend, ver o README do
+[`prototipo-1/`](prototipo-1/).

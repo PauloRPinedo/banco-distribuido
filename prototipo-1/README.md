@@ -1,106 +1,178 @@
-# Protótipo 1 — Um banco correto num só nó
+# Protótipo 1 — Um banco que não perde dinheiro
 
-Primeira das três entregas do [Banco Distribuído](../README.md).
+Primeira das três entregas do [Banco Distribuído](../README.md), **reaberta** em
+setembro de 2026 para receber o PostgreSQL, a replicação entre laptops, a injeção
+de falhas e um frontend web.
 
-**Estado: concluída.** 103 testes passam, sem instalar nada.
+**Estado: 305 testes passam.** Sem instalar nada.
 
 ---
 
 ## Objetivo
 
-Um banco que funciona num só servidor e cujas contas estão sempre certas: o
-dinheiro não é criado nem destruído, o saldo nunca fica negativo, operações
-concorrentes não se atropelam e o estado sobrevive a um reinício.
+De 2 a 3 servidores mantêm a mesma base de contas, e mesmo com um servidor a cair
+no meio de uma transferência o dinheiro nunca é criado nem destruído.
 
-Ainda não há rede entre servidores, replicação nem eleição.
-
-**Porque é que esta etapa existe antes da parte distribuída:** um erro de
-arredondamento no dinheiro, ou uma corrida entre duas *threads* que passe
-despercebida aqui, vai manifestar-se na etapa 2 como um saldo errado depois de um
-failover — e vai parecer um erro de replicação. Procurar-se-ia no protocolo
-durante dias por causa de um `float`.
+O primário só responde ao cliente depois de a operação estar gravada em disco na
+**maioria** dos nós. Se ele cai, os restantes elegem outro e o serviço continua.
+Um primário antigo que regressa é rejeitado por ter um `epoch` menor.
 
 ---
 
 ## O que ficou pronto
 
-- Criar conta, consultar saldo, depositar, sacar, transferir, extrato
-- Auditoria que **compara dois cálculos independentes**: a soma dos saldos e o
+- Criar conta, saldo, depositar, sacar, transferir, extrato
+- Auditoria que compara **dois cálculos independentes**: a soma dos saldos e o
   total deduzido do log
 - Dinheiro em centavos inteiros, nunca `float`
-- WAL append-only com `fsync`, e recuperação do estado por *replay* no arranque
-- Deduplicação por `op_id`, para a retentativa do cliente ser segura
+- **PostgreSQL** como armazém do log, com durabilidade declarada pela própria base
+- Recuperação do estado por *replay* no arranque
+- Deduplicação por `op_id`, reforçada por um índice único na base
 - *Locks* por conta em ordem total, sem *deadlock*
-- Servidor HTTP e cliente de linha de comando
+- **Replicação com confirmação por maioria**, heartbeat e eleição com *fencing*
+- **Injeção de falhas** com sessão de ensaio exclusiva entre operadores
+- Servidor HTTP, cliente de linha de comando e **frontend web**
 
-**Requisitos cobertos:** F-01 a F-07, F-12 · RF-01 a RF-08, RF-14, RF-17 ·
-RNF-01, RNF-09
+**Requisitos cobertos:** F-01 a F-12 · RF-01 a RF-14, RF-16, RF-17 · RNF-01 a
+RNF-03, RNF-06, RNF-09, RNF-10
 
-As decisões tomadas pelo caminho e o seu porquê estão em
-[`RELATORIO.md`](RELATORIO.md).
+As decisões e o seu porquê estão em [`RELATORIO.md`](RELATORIO.md); os diagramas
+em [`UML.md`](UML.md).
 
 ---
 
 ## Como executar
 
-Não é preciso instalar nada. Só Python 3.10 ou mais recente.
+### Os testes, sem instalar nada
 
 ```bash
 cd prototipo-1
+python3 -m unittest discover -s tests        # 305 testes, 27 saltados
+```
 
-python3 -m banco.servidor --id A --porta 8001
+Os 27 saltados são os que precisam de uma base de dados a sério. Para os correr:
+
+```bash
+BANCO_BD_TESTE=postgresql:///banco_teste python3 -m unittest discover -s tests
+```
+
+### Um nó só
+
+```bash
+pip install -r requisitos.txt
+./scripts/preparar_postgres.sh a
+python3 -m banco.servidor --id A --porta 8001 --bd postgresql:///banco_a
 
 python3 -m banco.cli criar-conta alice --saldo 100.00
-python3 -m banco.cli criar-conta bob --saldo 0.00
 python3 -m banco.cli transferir alice bob 25.00
-python3 -m banco.cli extrato alice
 python3 -m banco.cli auditoria
-python3 -m banco.cli estado
 ```
 
-```
-$ python3 -m banco.cli extrato alice
-  #  OPERAÇÃO       CONTRAPARTE      VALOR      SALDO
-  1  criar_conta    —            R$ 100,00  R$ 100,00
-  3  transferencia  bob          -R$ 25,00   R$ 75,00
+Sem PostgreSQL à mão, `--armazem ficheiro` volta ao log em JSONL e tudo funciona
+na mesma.
 
-$ python3 -m banco.cli transferir alice bob 500.00
-  erro: saldo insuficiente
-  alice tem R$ 75,00 e a operação pede R$ 500,00
-  → consulte o saldo com: python3 -m banco.cli saldo <id>
-```
+### Três nós em dois laptops
 
-### Testes
+O guia completo está em [`REDE.md`](REDE.md) — endereços, *firewall*, e a tabela
+de sintoma→causa que poupa a tarde. O resumo:
+
+**Sempre 3 nós, mesmo com 2 laptops** — o PC1 corre A, o PC2 corre B e C. Com 2
+nós a maioria é 2, e a queda de qualquer um deixa o outro em somente leitura: não
+haveria failover com escrita para demonstrar.
 
 ```bash
-python3 -m unittest discover -s tests          # 103 testes
-python3 -m unittest discover -s tests -v       # com o nome de cada um
+cp config/cluster.exemplo.json config/cluster.json   # e escrever os IPs reais
+./scripts/verificar_rede.sh config/cluster.json      # ANTES de subir o cluster
+./scripts/preparar_postgres.sh a                     # no PC1
+./scripts/preparar_postgres.sh b c                   # no PC2
+
+python3 -m banco.servidor --id A --porta 8001 --bd postgresql:///banco_a \
+    --config config/cluster.json
 ```
 
-Usa-se o `unittest` da biblioteca padrão precisamente para isto funcionar em
-qualquer laptop sem `pip install`. Quem tiver o `pytest` pode usá-lo à mesma:
-corre estes ficheiros sem alteração nenhuma.
+O `verificar_rede.sh` não é cerimónia: com uma porta bloqueada pela *firewall*, os
+sintomas — eleições sem fim, `epoch` a subir sozinho — parecem um erro de
+protocolo e levam a procurar no sítio errado durante horas.
 
-### Verificar a durabilidade à mão
+### Demonstrar o failover
 
 ```bash
-python3 -m banco.cli auditoria     # anotar o total
-# matar o processo do servidor e voltar a arrancá-lo
-python3 -m banco.cli auditoria     # o total tem de ser o mesmo
+python3 -m banco.cli --cluster config/cluster.json estado       # quem manda?
+python3 -m banco.cli --cluster config/cluster.json auditoria    # anotar o total
+
+python3 -m banco.cli --cluster config/cluster.json ensaio tomar --dono paulo
+python3 -m banco.cli --cluster config/cluster.json falha derrubar --no C
+
+python3 -m banco.cli --cluster config/cluster.json estado       # outro assumiu
+python3 -m banco.cli --cluster config/cluster.json transferir alice bob 10.00
+python3 -m banco.cli --cluster config/cluster.json auditoria    # o mesmo total
 ```
+
+**A sessão de ensaio é exclusiva.** Enquanto um operador a tem, o outro recebe
+`409` e não consegue injetar falha nenhuma — dois operadores a derrubar nós ao
+mesmo tempo produzem um cluster sem maioria por acidente, e o que se vê no ecrã
+deixa de ser a experiência que se estava a fazer.
+
+### O frontend
+
+Quatro ecrãs — Início, Operações, Extrato e Cluster — que são os mesmos do
+desenho em [`frontend/desenho/`](frontend/desenho/).
+
+```bash
+cd frontend && python3 -m http.server 8080      # local
+cloudflared tunnel --url http://localhost:8001  # expor um nó por HTTPS
+```
+
+Depois abre-se a página com `?api=<url do túnel>`, ou cola-se o endereço no botão
+«Endereço». A URL do túnel muda a cada arranque, por isso não está gravada em lado
+nenhum.
+
+O ecrã **Cluster** mostra os três nós a partir de um endereço só: o nó
+perguntado consulta os pares em paralelo (`GET /interno/cluster`) e diz quem
+respondeu. Durante um failover vê-se o nó derrubado ficar coral, outro assumir, e
+o total em circulação não se mexer.
+
+Para isso o nó exposto arranca com `--encaminhar-escritas`: quando deixa de ser
+primário, reenvia as escritas ao primário em vez de as recusar com um
+`primario_provavel` que é um endereço de LAN, inalcançável do navegador.
 
 ---
 
 ## Divisão do trabalho
 
-| Pessoa | Responsabilidade nesta etapa |
+| Pessoa | Responsabilidade |
 |---|---|
-| **Jefferson Daniel Flores Montenegro** | **Domínio e persistência.** `dominio/dinheiro.py`, `contas.py`, `operacoes.py`: centavos inteiros e formatação em reais, contas e validação de id, as quatro operações como funções puras, invariante da soma, extrato, auditoria. `persistencia/`: WAL com `fsync`, recuperação por *replay*, linha truncada, `estado.json`. |
-| **Cristhian Jesus Maylle Briceño** | **Concorrência.** `cluster/concorrencia.py` e a ordem de escrita em `cluster/no.py`: *locks* por conta adquiridos em ordem crescente de id, `lock` de estado do nó, deduplicação por `op_id`. Testes de corrida, de *deadlock* cruzado e de leitura consistente. |
-| **Paulo Sebastian Rojo Pinedo** | **Interface.** `interface/servidor_http.py` e `rotas.py`: servidor sobre `ThreadingHTTPServer`, as sete rotas de cliente, tradução uniforme de erros. `cli.py`, `interface/formato.py` e `cliente_http.py`: todos os comandos, formatação de tabelas e de dinheiro, cores só em terminal, códigos de saída. Fundação do repositório. |
+| **Jefferson Daniel Flores Montenegro** | **Domínio e persistência.** Centavos inteiros e formatação em reais, contas, as quatro operações como funções puras, invariante da soma, extrato, auditoria. O porto `ArmazemDeLog` e as três implementações — PostgreSQL, ficheiro e memória —, o esquema SQL, a recuperação por *replay* e a aplicação até ao `indice_commit` na réplica. |
+| **Cristhian Jesus Maylle Briceño** | **Concorrência e núcleo distribuído.** *Locks* por conta em ordem total e o `lock` de estado do nó. Log de replicação e correspondência de índices, confirmação por maioria, *heartbeat*, *timeout* sorteado com semente derivada por nó, máquina de estados da eleição, *fencing* por `epoch` e a entrada `noop` ao assumir. Injeção de falhas e sessão de ensaio. |
+| **Paulo Sebastian Rojo Pinedo** | **Interface.** Servidor HTTP, as rotas de cliente, internas e de administração, tradução uniforme de erros e CORS. Configuração do cluster e cliente entre nós. CLI completo, incluindo a descoberta do primário e os comandos de ensaio e falha. Frontend web, publicação na Vercel e os diagramas. |
 
 Cada pessoa escreveu os testes do seu próprio módulo. A documentação foi revista
-pelos três; o dono desta etapa é o **Jefferson**.
+pelos três.
+
+---
+
+## O que mudou face à etapa entregue
+
+O Protótipo 1 foi entregue no commit `7b430e6` com 103 testes e um nó só. O que
+mudou desde então, e porquê, está em [`SPECS.md`](../docs/SPECS.md) 11.4 a 11.6.
+Em resumo:
+
+| Mudança | Onde |
+|---|---|
+| O **PostgreSQL** substituiu o WAL em JSONL como armazém principal | `persistencia/armazem*.py` |
+| Apareceu a primeira **dependência externa** do projeto, `psycopg` | `requisitos.txt` |
+| O nó ganhou **papel, `epoch` e eleição**; arranca sempre como réplica | `cluster/eleicao.py` |
+| As escritas passaram a esperar pela **maioria** antes de responder | `cluster/replicacao.py` |
+| Apareceu **injeção de falhas** e a **sessão de ensaio** exclusiva | `cluster/falhas.py`, `ensaio.py` |
+| O servidor ganhou **CORS** e o cliente aprendeu a **encontrar o primário** | `interface/` |
+| Uma réplica pode **reenviar escritas** ao primário, para o frontend atrás de um túnel | `interface/servidor_http.py` |
+| `GET /interno/cluster` mostra **todos os nós** a partir de um endereço só | `cluster/vista.py` |
+| Apareceu um **frontend web**, publicado na Vercel | `frontend/` |
+| `--servidor` passou a aceitar `192.168.0.12:8001` sem o `http://` | `interface/cliente_http.py` |
+
+O último era um erro com consequência prática: sem o esquema, o CLI dizia «o
+servidor não respondeu» e saía com o código 3 — a mensagem exata de um processo em
+baixo — quando o servidor estava perfeitamente vivo.
 
 ---
 
@@ -108,14 +180,19 @@ pelos três; o dono desta etapa é o **Jefferson**.
 
 | Situação | O que acontece |
 |---|---|
-| Processo morto a meio de uma escrita no WAL | A última linha fica truncada. No arranque seguinte é descartada e o ficheiro é truncado nesse ponto. Como o `fsync` ainda não devolvera, essa operação nunca chegou a ser confirmada a ninguém |
-| Processo morto **depois** do `fsync`, antes de responder | A operação está no log e é aplicada no arranque. O cliente, que não recebeu resposta, repete com o mesmo `op_id` e recebe o resultado guardado, sem mover o dinheiro outra vez |
-| Disco cheio | O `fsync` levanta `OSError`, a operação não é aplicada e o cliente recebe `500 erro_interno` com o rasto no terminal do servidor. O saldo não muda. O CLI sai com 3 e diz **"não conseguiu atender"**, não "não respondeu" — a distinção importa, porque as soluções são diferentes |
-| Linha corrompida no meio do WAL | O arranque falha com `WalCorrompido` em vez de aplicar um log com um buraco. Distingue-se de propósito da cauda truncada, que é normal |
+| Processo morto a meio de uma escrita | A transação não confirma. No arranque seguinte a entrada não existe, e como o `COMMIT` não devolvera, essa operação nunca foi confirmada a ninguém |
+| Processo morto **depois** do commit, antes de responder | A operação está no log e é aplicada no arranque. O cliente repete com o mesmo `op_id` e recebe o resultado guardado, sem mover o dinheiro outra vez |
+| A base de dados em baixo, ou disco cheio | `503 armazem_indisponivel`, e o saldo não muda. É 503 e não 500 de propósito: o banco está de pé e o cliente deve repetir quando o problema passar |
+| Dois nós apontados ao mesmo DSN | O segundo recusa-se a arrancar. Sem isto partilhariam log em silêncio e a corrupção pareceria um erro de protocolo |
+| A maioria não confirma a tempo | `503 sem_quorum`. A entrada fica **gravada e por confirmar**; o primário seguinte confirma-a ou trunca-a, e a deduplicação garante que o dinheiro se move uma vez só |
+| A maioria inacessível há mais de um *timeout* de eleição | O primário passa a **somente leitura**: responde a saldo, extrato e auditoria, recusa escritas |
+| Dois nós caídos de três | Somente leitura, e é o preço honesto de RNF-02 — não há a quem replicar |
+| Primário antigo que regressa | Vê um `epoch` maior e despromove-se sem ter confirmado nada |
+| Uma leitura durante a espera pelo quórum | Pode esperar até `timeout_replicacao_ms` (500 ms). Com o cluster são, são milissegundos |
+| Dois operadores a injetar falhas | O segundo recebe `409 ensaio_tomado`, com o dono e quanto falta |
+| O túnel cai com o frontend aberto | O total esbate-se e aparece «última leitura há N s». Nunca se mostra um número velho como se fosse atual |
 | Pedido com corpo que não é JSON | `400 corpo_invalido`, sem tocar no estado |
 | Valor monetário enviado como número JSON | `400 valor_invalido`. Um número seria descodificado como `float` |
-| Duas transferências cruzadas em simultâneo | Serializam pela ordem total dos *locks*. Não há *deadlock*: testado com 100 threads, 20 execuções seguidas |
-| Servidor em baixo quando o CLI corre | O CLI sai com o código 3, distinto do 1 de uma recusa por regra |
 
 ---
 
@@ -123,15 +200,28 @@ pelos três; o dono desta etapa é o **Jefferson**.
 
 | | |
 |---|---|
-| Testes | **103**, todos a passar |
-| Linhas de código | 1408 em `banco/` |
-| Linhas de teste | 1226 em `tests/` |
-| Duração da suíte | cerca de 8 segundos |
-| Dependências externas | nenhuma |
-| Módulos acima de 250 linhas | nenhum |
+| Testes | **305**, todos a passar |
+| Testes que exigem PostgreSQL | 27, saltados com o motivo escrito quando não há base |
+| Linhas de código | 4192 em `banco/` |
+| Linhas de teste | 3348 em `tests/` |
+| Duração da suíte | cerca de 15 segundos |
+| Dependências externas | uma: `psycopg[binary]` |
+| Módulos acima de 250 linhas | dois: `operacoes.py` (273) e `no.py` (261) |
+| Linhas acima de 90 colunas | nenhuma |
 
-Os testes de concorrência foram corridos **20 vezes seguidas sem uma falha**,
-como o ROADMAP exige.
+**O que não está feito**, e fica escrito em vez de omitido:
 
-O que **não** está feito nesta etapa, por ser de etapas seguintes: replicação,
-quórum, eleição, failover, injeção de falhas, métricas, painel web e *benchmark*.
+- **A vazão não foi medida.** Sabe-se que o `lock` de estado serializa tudo,
+  incluindo a espera pela maioria, e que isso é um limite claro — mas não se põe
+  um número onde não houve medição.
+- **O teste de *split-brain* com partição simétrica não existe.** A injeção de
+  falhas suporta-o (`falha isolar`), e há um teste de isolamento a tirar um nó do
+  quórum, mas o cenário completo dos dois lados sem maioria ainda não está escrito.
+- **Não há log estruturado nem métricas** (RNF-07, RF-15).
+- **O `GET /painel` não existe**: o frontend é servido à parte, não pelo nó.
+- **A página não funciona sem JavaScript.** Mostra a estrutura, não os números:
+  não há servidor a renderizá-la.
+- **O WAL cresce sem limite.** Aceitável à escala da demonstração.
+- **Sem autenticação nem cifragem**, por decisão da proposta — e é preciso dizer
+  que o túnel expõe um banco sem autenticação à internet enquanto está de pé.
+- **RF-18** (adicionar e remover servidores) continua fora de âmbito.
