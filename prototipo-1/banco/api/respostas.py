@@ -2,7 +2,7 @@
 
 Cada valor monetário vai duas vezes: em centavos, para quem calcula, e já
 formatado, para quem mostra. Mandar só os centavos convidava o navegador a
-dividir por 100 — um float em dinheiro, que é exatamente o que SPECS 3.1
+dividir por 100 — um float em dinheiro, que é exatamente o que o banco
 proíbe, reintroduzido no último passo.
 """
 

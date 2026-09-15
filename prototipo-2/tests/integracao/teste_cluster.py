@@ -2,7 +2,7 @@
 
 Não há `sleep` de valor fixo em lado nenhum: espera-se por condições, com limite
 de tempo. Um `sleep` passa na máquina de quem o escreveu e falha na do colega, e
-quando falha não se sabe se o erro é do código ou do relógio (ROADMAP 3.5).
+quando falha não se sabe se o erro é do código ou do relógio.
 """
 
 import json
@@ -26,7 +26,7 @@ class TesteEleicao(unittest.TestCase):
         self.assertIn(primario.id, {no.id for no in cluster.nos})
 
     def teste_todos_arrancam_como_replica(self):
-        """SPECS 4.2: quem manda decide-se por eleição, nunca pela memória.
+        """Quem manda decide-se por eleição, nunca pela memória.
 
         Verifica-se antes de o ciclo ter tempo de correr — daí olhar para o papel
         imediatamente a seguir a construir o cluster.
@@ -38,7 +38,7 @@ class TesteEleicao(unittest.TestCase):
         self.assertEqual(papeis, {"réplica"})
 
     def teste_nunca_ha_dois_primarios_no_mesmo_epoch(self):
-        """A garantia central do fencing (SPECS 8.3).
+        """A garantia central do fencing.
 
         Duas maiorias intersectam-se sempre, e cada nó vota uma vez por epoch:
         logo não pode haver dois primários no mesmo epoch. Se isto falhar, o
@@ -90,7 +90,7 @@ class TesteEscrita(unittest.TestCase):
         self.assertEqual(capturado.exception.estado_http, 409)
 
     def teste_a_recusa_diz_a_quem_perguntar(self):
-        """Sem isto, o cliente teria de tentar os nós às cegas (SPECS 6.1).
+        """Sem isto, o cliente teria de tentar os nós às cegas.
 
         Espera-se que a réplica tenha recebido um heartbeat: antes disso ela
         ainda não sabe quem manda, e responder "não sou eu, mas não sei quem é" é
@@ -165,7 +165,7 @@ class TesteEscrita(unittest.TestCase):
         self.assertFalse(depois["divergente"])
 
     def teste_a_noop_do_proprio_epoch_e_gravada_ao_assumir(self):
-        """SPECS 8.4: sem ela, uma entrada herdada não se pode confirmar."""
+        """Sem ela, uma entrada herdada não se pode confirmar."""
         entradas = self.primario.log.ler_desde(0)
 
         self.assertTrue(any(e.tipo == "noop" for e in entradas),
@@ -186,8 +186,8 @@ class TesteSemQuorum(unittest.TestCase):
     def teste_com_um_no_so_as_escritas_sao_recusadas(self):
         """Com 3 nós a maioria é 2: um nó sozinho não confirma nada.
 
-        É o preço honesto de RNF-02, registado em SPECS 11.1 — e é a razão pela
-        qual se correm 3 nós mesmo com 2 laptops.
+        É o preço honesto de RNF-02 — e é a razão pela qual se correm 3 nós
+        mesmo com 2 laptops.
         """
         cluster = criar_cluster_de_teste(self)
         primario = esperar_por_primario(self, cluster.nos)
@@ -211,7 +211,7 @@ class TesteSemQuorum(unittest.TestCase):
         self.assertEqual(primario.saldo("alice")["saldo_centavos"], 10000)
 
     def teste_sem_quorum_o_dinheiro_nao_se_move(self):
-        """A entrada fica gravada por confirmar, mas não aplicada (SPECS 7)."""
+        """A entrada fica gravada por confirmar, mas não aplicada."""
         cluster = criar_cluster_de_teste(self)
         primario = esperar_por_primario(self, cluster.nos)
         primario.executar("c1", CriarConta("alice", 10000))

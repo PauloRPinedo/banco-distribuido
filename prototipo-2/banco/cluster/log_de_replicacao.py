@@ -63,7 +63,7 @@ class LogDeReplicacao:
     def corresponde(self, indice_anterior: int, epoch_anterior: int) -> bool:
         """O meu log encaixa no que o líder diz ter antes desta entrada?
 
-        É a verificação de consistência de SPECS 7: se o par concorda comigo no
+        É a verificação de consistência da replicação: se o par concorda comigo no
         índice e no epoch da entrada anterior, então concordamos em tudo o que
         vem antes — e daí para trás não é preciso comparar nada.
         """

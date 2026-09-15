@@ -1,4 +1,4 @@
-/* O painel e o frontend partilham a linguagem visual da secção 8 do CODESTYLE.
+/* O painel e o frontend partilham a mesma linguagem visual.
    A referência é o Nubank; a cor não pode ser a dele, ou é a marca de outra
    empresa num trabalho que não é dela. O azul é o único matiz que sobra limpo:
    verde é o carimbo de confirmado, âmbar é atenção, coral é fora do ar. */
@@ -120,8 +120,8 @@ h1, h2, h3 { text-wrap: balance; }
      o ecrã; a 300 lê-se do fundo da sala sem gritar.
      O clamp existe porque 72px fixos partem "R$ 12.400,00" em duas linhas num
      telemóvel — e um total partido ao meio deixa de se ler de relance, que é a
-     única coisa que ele tem de fazer. Nos 72px da secção 8 do CODESTYLE a
-     partir de ~560px de largura, que é onde o painel vive. */
+     única coisa que ele tem de fazer. Chega aos 72px a partir de ~560px de
+     largura, que é onde o painel vive. */
   font-size: clamp(40px, 11vw, 72px);
   font-weight: 300; letter-spacing: -0.03em; line-height: 1;
 }
@@ -186,7 +186,7 @@ th {
   font-size: 13px; font-weight: 500; letter-spacing: 0.01em; color: var(--tinta-fraca);
   text-align: left; padding: 0 16px 8px 0;
 }
-/* Duas colunas de espaço entre campos (CODESTYLE 9.2). Sem o padding lateral as
+/* Duas colunas de espaço entre campos. Sem o padding lateral as
    células colam-se e lê-se "1criar conta" — apanhado a olhar para a página. */
 td { padding: 8px 16px 8px 0; border-top: 1px solid var(--fio); }
 th:last-child, td:last-child { padding-right: 0; }

@@ -14,12 +14,12 @@ CREATE TABLE conta (
     -- para a mesma conta.
     id              VARCHAR(32) PRIMARY KEY CHECK (id ~ '^[a-z0-9_-]{1,32}$'),
 
-    -- Dinheiro é inteiro de centavos, nunca vírgula flutuante (SPECS 3.1).
+    -- Dinheiro é inteiro de centavos, nunca vírgula flutuante.
     -- O CHECK é a segunda linha de defesa de RF-06: mesmo que o domínio
     -- falhasse, a base recusa um saldo negativo.
     saldo_centavos  BIGINT NOT NULL CHECK (saldo_centavos >= 0),
 
-    -- Instante Unix, não TIMESTAMP (SPECS 3.2 diz `criada_em: float`). Com
+    -- Instante Unix, não TIMESTAMP. Com
     -- TIMESTAMP sem fuso, dois laptops com fusos diferentes leem valores
     -- diferentes da mesma linha, e a conversão passaria a acontecer em dois
     -- sítios em vez de um.
@@ -27,14 +27,14 @@ CREATE TABLE conta (
 );
 
 CREATE TABLE operacao (
-    -- Gerado pelo cliente (SPECS 3.3), é a chave de deduplicação: repetir a
-    -- mesma escrita com o mesmo op_id move o dinheiro uma só vez. VARCHAR e
-    -- não UUID porque SPECS 3.3 dá "3f1c8a2e" como exemplo, que não é um UUID;
+    -- Gerado pelo cliente, é a chave de deduplicação: repetir a mesma
+    -- escrita com o mesmo op_id move o dinheiro uma só vez. VARCHAR e não
+    -- UUID porque um op_id como "3f1c8a2e" é válido e não é um UUID;
     -- o formato é validado na fronteira, antes de chegar aqui.
     op_id             VARCHAR(64) PRIMARY KEY,
 
-    -- Ordem total das operações, da sequência `operacao_numero`. É o `indice`
-    -- de SPECS 3.3 e é o que ordena o extrato: ordenar por instante empataria
+    -- Ordem total das operações, da sequência `operacao_numero`. É o que
+    -- ordena o extrato: ordenar por instante empataria
     -- entre duas operações no mesmo microssegundo.
     numero            BIGINT NOT NULL UNIQUE,
 
@@ -50,8 +50,8 @@ CREATE TABLE operacao (
 
     -- A resposta que o cliente recebeu, guardada tal e qual. Ao repetir o
     -- op_id devolve-se isto, verbatim. Recalcular a partir dos saldos de agora
-    -- daria uma resposta diferente se entretanto houve outras operações, e
-    -- SPECS 3.3 exige "o resultado guardado", não um resultado equivalente.
+    -- daria uma resposta diferente se entretanto houve outras operações, e o
+    -- que se exige é "o resultado guardado", não um resultado equivalente.
     resposta          JSONB NOT NULL,
 
     instante          DOUBLE PRECISION NOT NULL

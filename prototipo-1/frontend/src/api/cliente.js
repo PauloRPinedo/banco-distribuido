@@ -3,7 +3,7 @@
 // contentor — e por isso este ficheiro não conhece endereço nenhum.
 const BASE = "/api";
 
-// O op_id é gerado aqui, no cliente, e não no servidor (SPECS 3.3). É isso
+// O op_id é gerado aqui, no cliente, e não no servidor. É isso
 // que torna seguro repetir um pedido de que não se sabe o desfecho: se a
 // primeira tentativa chegou a ser aplicada, a segunda devolve o resultado
 // guardado em vez de mover o dinheiro outra vez.
@@ -20,7 +20,7 @@ async function pedir(caminho, { metodo = "GET", corpo } = {}) {
 
   const dados = await resposta.json().catch(() => null);
   if (!resposta.ok) {
-    // Todos os erros do banco têm a mesma forma (SPECS 6), por isso há um só
+    // Todos os erros do banco têm a mesma forma, por isso há um só
     // caminho de tratamento.
     throw new Error(dados?.mensagem || "o banco não respondeu");
   }
@@ -28,7 +28,7 @@ async function pedir(caminho, { metodo = "GET", corpo } = {}) {
 }
 
 // `valor` e `saldoInicial` são texto, e vão como texto. Nunca se faz
-// Number(...) em dinheiro: seria o float que SPECS 3.1 proíbe, reintroduzido
+// Number(...) em dinheiro: seria o float que o banco proíbe, reintroduzido
 // no último passo.
 export const api = {
   // Quem é este nó. Com dois painéis iguais abertos, é o que diz qual é qual.

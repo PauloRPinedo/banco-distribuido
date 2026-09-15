@@ -58,8 +58,6 @@ cliente deposita num, outro no outro, os logs divergem, e quando o antigo regres
 ou se perde uma operação ou se somam saldos incompatíveis. É exatamente a falha que
 o projeto existe para impedir.
 
-A justificação completa está na secção 11.1 do [`SPECS.md`](../docs/SPECS.md).
-
 ---
 
 ## Como executar

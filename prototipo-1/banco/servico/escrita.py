@@ -1,6 +1,6 @@
 """Toda a escrita do banco passa por aqui, e só por aqui.
 
-A ordem obrigatória da secção 5 de docs/SPECS.md vive nesta função, uma vez.
+A ordem obrigatória de uma escrita vive nesta função, uma vez.
 As quatro operações são a mesma sequência de passos com um objeto diferente lá
 dentro — escrevê-la quatro vezes seria dar-lhe quatro sítios para divergir.
 
@@ -43,9 +43,9 @@ class ServicoDeEscrita:
     def aplicar(self, operacao: Operacao, op_id: str) -> dict:
         """Aplica uma operação e devolve o que o cliente vai receber.
 
-        Os passos estão numerados como em SPECS 5, e nenhum pode trocar de
-        lugar. O passo 5 de lá — replicar e esperar pela maioria — não existe
-        nesta etapa: há um nó só, e a durabilidade é o commit do PostgreSQL.
+        Os passos vão numerados, e nenhum pode trocar de lugar. O passo 5 —
+        replicar e esperar pela maioria — não existe nesta etapa: há um nó só,
+        e a durabilidade é o commit do PostgreSQL.
         """
         # 1. Já foi aplicada? Devolver o resultado guardado e terminar.
         guardada = self._operacoes.resposta_guardada(op_id)

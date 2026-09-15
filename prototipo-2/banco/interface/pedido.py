@@ -5,9 +5,9 @@ administração — poderem partilhar isto sem se importarem uns aos outros.
 
 `consulta` foi acrescentada quando `/interno/log?desde=N` passou a existir: até
 aí o servidor descartava a query string, e uma réplica atrasada não tinha como
-dizer de onde queria o log. Um `@dataclass` em vez de mais um parâmetro solto é
-o que o CODESTYLE secção 4 pede — dicionários soltos a atravessar camadas são
-exatamente o que ali se proíbe.
+dizer de onde queria o log. Um `@dataclass` em vez de mais um parâmetro solto
+é a regra da casa — dicionários soltos a atravessar camadas são exatamente o
+que não se quer.
 """
 
 import re

@@ -75,7 +75,7 @@ curl localhost:8001/auditoria
 ```
 
 > **O dinheiro viaja como texto**: `"25.50"`, nunca `25.50`. Um número JSON é
-> recusado com `400 valor_invalido`, de propósito — ver `docs/SPECS.md` 6.
+> recusado com `400 valor_invalido`, de propósito.
 
 ### Correr os 111 testes, com base de dados
 
@@ -266,10 +266,14 @@ decisão sobre a replicação da base em
 
 ## Onde está escrito o resto
 
+Cada etapa explica-se no seu próprio README, e é lá que estão as rotas, os modos
+de falha conhecidos e a divisão do trabalho:
+
 | Documento | Para quê |
 |---|---|
-| [`docs/SPECS.md`](docs/SPECS.md) | Como o sistema funciona: protocolos, formatos, API, e os desvios com a sua justificação |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | O que cada etapa faz, e quem fez o quê |
-| [`docs/CODESTYLE.md`](docs/CODESTYLE.md) | Estilo do código, do CLI e do painel |
-| [`docs/CONVENCOES.md`](docs/CONVENCOES.md) | Convenções de trabalho no repositório |
+| [`prototipo-1/README.md`](prototipo-1/README.md) | O banco de um nó: rotas, base de dados, o caminho de uma escrita, e o que mudou face à etapa entregue |
+| [`prototipo-1/REDE.md`](prototipo-1/REDE.md) | Os dois portáteis a servir contra a mesma base |
+| [`prototipo-2/README.md`](prototipo-2/README.md) | O cluster: replicação por log, eleição e failover |
 | [`prototipo-2/REDE.md`](prototipo-2/REDE.md) | Pôr o cluster a correr em três portáteis |
+| [`prototipo-2/UML.md`](prototipo-2/UML.md) | Os diagramas do cluster, e a ordem dos passos de uma escrita |
+| [`projeto-final/README.md`](projeto-final/README.md) | A pilha expandida, e o que dela está por fazer |

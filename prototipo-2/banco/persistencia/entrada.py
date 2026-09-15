@@ -1,6 +1,6 @@
 """A entrada de log: a unidade de durabilidade e do extrato.
 
-O formato é o da secção 3.3 de docs/SPECS.md e não muda entre etapas. Na etapa 1
+O formato não muda entre etapas. Na etapa 1
 o `epoch` é sempre 1 e ninguém o lê, mas o campo existe: mudar o formato do WAL
 na etapa 2 obrigaria a converter ficheiros e a explicar duas versões na defesa.
 """

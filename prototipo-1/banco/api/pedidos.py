@@ -1,10 +1,10 @@
 """Os corpos que as rotas aceitam.
 
-É aqui que o texto vira centavos, uma vez só, na fronteira (SPECS 3.1). Daqui
+É aqui que o texto vira centavos, uma vez só, na fronteira. Daqui
 para dentro só circulam inteiros.
 
 Os campos chamam-se `valor` e `saldo_inicial`, sem unidade, porque é assim que
-SPECS 6.1 os fixa no cabo. A regra de escrever sempre `valor_centavos` vale a
+estão fixados no cabo. A regra de escrever sempre `valor_centavos` vale a
 partir de `para_centavos()` para dentro.
 """
 
@@ -16,8 +16,8 @@ from pydantic import BaseModel
 from banco.dominio.dinheiro import para_centavos
 from banco.dominio.erros import ValorInvalido
 
-# SPECS 3.3 dá "3f1c8a2e" como exemplo de op_id, que não é um UUID. Exigir um
-# UUID seria apertar mais do que a especificação e rejeitar clientes válidos.
+# Um op_id como "3f1c8a2e" é válido e não é um UUID. Exigir um UUID seria
+# apertar mais do que o necessário e rejeitar clientes válidos.
 _OP_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 
 
@@ -34,7 +34,7 @@ def validar_op_id(op_id: Any) -> str:
 
 
 def em_centavos(valor: Any) -> int:
-    """O valor do corpo, em centavos. Recusa números, como SPECS 6 exige."""
+    """O valor do corpo, em centavos. Recusa números, de propósito."""
     return para_centavos(valor)
 
 

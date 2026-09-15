@@ -1,8 +1,7 @@
 """O nó visto pelos outros nós: replicar, votar, assumir o mandato.
 
-Está separado de `no.py` porque são duas responsabilidades distintas, e o
-CODESTYLE avisa que um módulo acima de ~250 linhas costuma estar a fazer duas
-coisas. A divisão é por audiência:
+Está separado de `no.py` porque são duas responsabilidades distintas, e um
+módulo acima de ~250 linhas costuma estar a fazer duas coisas. A divisão é por audiência:
 
 - `no.py` é o **banco**: aceita operações de clientes e responde a leituras;
 - este ficheiro é o **participante do protocolo**: atende os pares.
@@ -25,7 +24,7 @@ class LadoDoProtocolo:
     def replicar(self, epoch: int, id_lider: str, indice_anterior: int,
                  epoch_anterior: int, entradas: list[EntradaDeLog],
                  commit_lider: int, ensaio: dict | None = None) -> dict:
-        """Atende `/interno/replicar` (SPECS 7). Também serve de heartbeat."""
+        """Atende `/interno/replicar`. Também serve de heartbeat."""
         if self.eleicao is None:
             return {"ok": False, "epoch": 1,
                     "motivo": "este nó não faz parte de um cluster"}
@@ -49,7 +48,7 @@ class LadoDoProtocolo:
 
         if not self.log.corresponde(indice_anterior, epoch_anterior):
             # Condição 2: o meu log divergiu ou tem um buraco. Digo onde estou e
-            # o líder reenvia daí — a simplificação face ao Raft da secção 7.
+            # o líder reenvia daí — é a simplificação face ao Raft.
             return {"ok": False, "epoch": self.eleicao.epoch,
                     "meu_ultimo_indice": self.log.ultimo_indice,
                     "motivo": "o log não corresponde"}
@@ -64,7 +63,7 @@ class LadoDoProtocolo:
                 "indice_correspondente": self.log.ultimo_indice}
 
     def votar(self, pedido: PedidoDeVoto) -> dict:
-        """Atende `/interno/votar` (SPECS 8.2).
+        """Atende `/interno/votar`.
 
         Não toma `_lock_estado` de propósito: tem de conseguir responder enquanto
         uma escrita espera pela maioria, que é precisamente a situação em que a
@@ -89,7 +88,7 @@ class LadoDoProtocolo:
                 "motivo": motivo}
 
     def _assumir_mandato(self) -> None:
-        """Grava a `noop` do próprio epoch ao assumir (SPECS 8.4).
+        """Grava a `noop` do próprio epoch ao assumir.
 
         Uma entrada herdada do primário anterior não pode ser confirmada por
         contagem de réplicas — há um cenário conhecido em que acaba sobrescrita, e

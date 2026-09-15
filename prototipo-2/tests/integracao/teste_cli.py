@@ -52,7 +52,7 @@ class TesteCli(unittest.TestCase):
         cls.porta = _porta_livre()
         cls.servidor = subprocess.Popen(
             # `--armazem ficheiro`: a suíte tem de correr numa máquina sem
-            # PostgreSQL instalado (docs/CONVENCOES.md, secção 4).
+            # PostgreSQL instalado.
             [sys.executable, "-m", "banco.servidor", "--id", "A",
              "--porta", str(cls.porta), "--endereco", "127.0.0.1",
              "--armazem", "ficheiro", "--dados", cls._temporario.name],

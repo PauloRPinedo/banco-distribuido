@@ -29,10 +29,10 @@ def para_centavos(texto: str) -> int:
     Aceita as duas separações decimais porque o cliente escreve em português na
     linha de comando e em inglês no corpo JSON.
 
-    Recusa o que não for texto. SPECS 6 exige que o dinheiro viaje como texto
-    JSON e que um número seja recusado com `valor_invalido`; sem esta guarda,
-    `str(25.00)` daria "25.0" e o número passaria em silêncio, dentro do único
-    módulo que existe para o impedir.
+    Recusa o que não for texto. O dinheiro viaja como texto JSON e um número
+    é recusado com `valor_invalido`; sem esta guarda, `str(25.00)` daria "25.0"
+    e o número passaria em silêncio, dentro do único módulo que existe para o
+    impedir.
     """
     if not isinstance(texto, str):
         raise ValorInvalido(

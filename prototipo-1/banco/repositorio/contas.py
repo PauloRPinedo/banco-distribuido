@@ -16,7 +16,7 @@ class RepositorioContas:
     def bloquear(self, identificadores: tuple[str, ...]) -> dict[str, Conta]:
         """Bloqueia as contas pela ordem recebida e devolve as que existem.
 
-        É o passo 2 da ordem obrigatória de SPECS 5. Os identificadores chegam
+        É o passo 2 da ordem obrigatória de uma escrita. Os identificadores chegam
         já ordenados de `Operacao.contas_tocadas()`, e é essa ordem total que
         torna impossível o deadlock de alice->bob contra bob->alice: duas
         transferências cruzadas pedem os mesmos dois locks pela mesma ordem, e

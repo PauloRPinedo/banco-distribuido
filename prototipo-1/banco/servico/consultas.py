@@ -2,7 +2,7 @@
 
 Separadas da escrita porque não tomam locks nenhuns nem gastam números da
 sequência. Juntá-las ao aplicador só tornaria mais difícil ver que ele é a
-ordem obrigatória de SPECS 5 e nada mais.
+ordem obrigatória de uma escrita e nada mais.
 """
 
 from dataclasses import dataclass

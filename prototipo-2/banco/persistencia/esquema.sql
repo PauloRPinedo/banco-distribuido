@@ -1,4 +1,4 @@
--- Esquema do armazém do log. Uma base de dados por nó (docs/SPECS.md 4.3).
+-- Esquema do armazém do log. Uma base de dados por nó.
 --
 -- Duas tabelas, e nenhuma delas guarda saldos: o Livro reconstrói-se sempre por
 -- replay do log. Uma tabela de saldos seria uma segunda fonte de verdade para o
@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS registo_do_log (
     op_id    TEXT   NOT NULL,
     tipo     TEXT   NOT NULL,
     -- O dinheiro vive aqui dentro, como inteiro de centavos. Nunca numeric,
-    -- nunca money, nunca double precision — o porquê de cada recusa está em
-    -- docs/SPECS.md 4.3.
+    -- nunca money, nunca double precision: nenhum deles representa centavos
+    -- exatos sem margem para arredondamento.
     dados    JSONB  NOT NULL,
     instante DOUBLE PRECISION NOT NULL,
     CONSTRAINT indice_positivo CHECK (indice > 0),
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS estado_do_no (
     no_id         TEXT PRIMARY KEY,
     epoch         BIGINT NOT NULL DEFAULT 1,
     votou_em      TEXT,
-    -- O commit é um prefixo, não um sinal por linha (docs/SPECS.md 4.3).
+    -- O commit é um prefixo, não um sinal por linha.
     indice_commit BIGINT NOT NULL DEFAULT 0,
     CONSTRAINT commit_nao_negativo CHECK (indice_commit >= 0)
 );

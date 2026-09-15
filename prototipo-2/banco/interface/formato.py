@@ -1,4 +1,4 @@
-"""Apresentação da linha de comando, conforme a secção 9 de docs/CODESTYLE.md.
+"""Apresentação da linha de comando.
 
 O princípio é um só: **cor significa desvio**. A saída normal não tem cor
 nenhuma, para que uma mancha de cor no ecrã projetado queira sempre dizer que

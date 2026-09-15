@@ -8,7 +8,7 @@ outro.
 Três falhas, e nada mais:
 
 - `atraso` — responder devagar. É o primário lento, que é o caso que justifica a
-  eleição por voto em vez de por posição na lista (SPECS 11.1).
+  eleição por voto em vez de por posição na lista.
 - `isolar` — descartar mensagens de nós indicados, nos dois sentidos. Reproduz uma
   partição sem tocar na firewall.
 - `derrubar` — morrer já, sem fechar nada.

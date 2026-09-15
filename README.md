@@ -45,12 +45,12 @@ da etapa 1, e deixou de haver uma pasta a mostrar o banco de um nó só isolado 
 
 A decisão foi desfeita. O Protótipo 1 é hoje uma versão básica do projeto final:
 as mesmas camadas e a mesma pilha, sem replicação nem autenticação. O porquê, e os
-quatro desvios que isto custa, estão em [`docs/SPECS.md`](docs/SPECS.md) 11.8.
+quatro desvios que isto custa, estão no README dessa pasta.
 
 A replicação, a eleição e o failover que tinham ficado dentro do Protótipo 1
 foram recuperados para `prototipo-2/`, que é onde a etapa 2 sempre devia ter
-estado ([`docs/SPECS.md`](docs/SPECS.md) 11.10). Corre sobre a biblioteca padrão,
-com três nós — um por portátil, um por integrante do grupo.
+estado. Corre sobre a biblioteca padrão, com três nós — um por portátil, um por
+integrante do grupo.
 
 | Quero ver | Comando |
 |---|---|
@@ -64,14 +64,19 @@ o trabalho foi repartido entre os três.
 
 ## Documentação
 
+Cada etapa explica-se no seu próprio README. Não há um documento central, e é
+de propósito: o que descreve uma etapa vive na pasta dessa etapa, e assim não se
+pode desatualizar em relação ao código que descreve.
+
 | Documento | Para quê |
 |---|---|
-| [`docs/proposta.md`](docs/proposta.md) | A proposta entregue. Fonte dos requisitos F-xx, RF-xx e RNF-xx |
-| [`docs/SPECS.md`](docs/SPECS.md) | Como o sistema funciona: protocolos, formatos, API, rastreabilidade |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | O que se faz em cada etapa e subfase, e quem faz |
-| [`docs/CODESTYLE.md`](docs/CODESTYLE.md) | Estilo do código, do CLI e do painel |
-| [`docs/CONVENCOES.md`](docs/CONVENCOES.md) | Convenções de trabalho no repositório |
 | [`INSTALACAO.md`](INSTALACAO.md) | Pôr tudo a correr de raiz, etapa a etapa, e o que fazer quando não arranca |
+| [`prototipo-1/README.md`](prototipo-1/README.md) | O banco de um nó: rotas, base de dados, o caminho de uma escrita |
+| [`prototipo-1/REDE.md`](prototipo-1/REDE.md) | Os dois portáteis a servir contra a mesma base |
+| [`prototipo-2/README.md`](prototipo-2/README.md) | O cluster: replicação por log, eleição e failover |
+| [`prototipo-2/REDE.md`](prototipo-2/REDE.md) | Pôr o cluster a correr em três portáteis |
+| [`prototipo-2/UML.md`](prototipo-2/UML.md) | Os diagramas do cluster, e a ordem dos passos de uma escrita |
+| [`projeto-final/README.md`](projeto-final/README.md) | A pilha expandida: balanceador, autenticação, Docker, nuvem |
 
 ---
 
@@ -112,8 +117,7 @@ curl localhost:8001/auditoria
 decisão: a parte onde o dinheiro se move tem de ser verificável em qualquer
 laptop, sem venv para criar nem `pip install` para falhar. Os de integração —
 que falam com um servidor a sério e com uma base a sério — saltam-se sozinhos,
-com o motivo escrito, quando não há pilha nem base. O que isso custa está em
-[`docs/SPECS.md`](docs/SPECS.md) 11.8.
+com o motivo escrito, quando não há pilha nem base.
 
 Para o cluster em várias máquinas, o failover e o frontend completo, ver o README
 do [`projeto-final/`](projeto-final/).

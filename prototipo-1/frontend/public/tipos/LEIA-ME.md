@@ -13,5 +13,5 @@ ninguém quer descobrir na altura.
 Os subconjuntos `latin` e `latin-ext` chegam para português: o `latin` já cobre
 `ã`, `ç`, `õ` e `é`, e o `latin-ext` fica para o resto dos acentos.
 
-Porque é que este painel descarrega tipos quando `CODESTYLE.md` 8.2 diz para não
-o fazer: ver `docs/SPECS.md` 11.11.
+Auto-alojá-los é um desvio deliberado à regra de não trazer tipos de fora: o
+painel tem de se compor igual numa máquina sem internet, e é isso que pesa mais.
