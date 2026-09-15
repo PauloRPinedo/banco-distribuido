@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { api } from "./api/cliente.js";
 import Auditoria from "./paginas/Auditoria.jsx";
 import Contas from "./paginas/Contas.jsx";
 import Transferir from "./paginas/Transferir.jsx";
@@ -14,13 +15,23 @@ const SEPARADORES = [
 
 export default function App() {
   const [aberto, definirAberto] = useState("contas");
+  const [no, definirNo] = useState(null);
+
+  // Os dois portáteis servem painéis idênticos contra a mesma base. Sem isto,
+  // a meio da demonstração ninguém sabe qual dos ecrãs é qual.
+  useEffect(() => {
+    api.saude().then((estado) => definirNo(estado.no)).catch(() => definirNo(null));
+  }, []);
+
   const { Painel } = SEPARADORES.find((separador) => separador.id === aberto);
 
   return (
     <div className="pagina">
       <header className="cabecalho">
         <h1>Banco distribuído</h1>
-        <p className="legenda">Protótipo 1 — um nó só</p>
+        <p className="legenda">
+          Protótipo 1{no ? ` · nó ${no}` : ""}
+        </p>
       </header>
 
       <nav className="separadores">

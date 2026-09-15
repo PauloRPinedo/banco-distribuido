@@ -31,6 +31,9 @@ async function pedir(caminho, { metodo = "GET", corpo } = {}) {
 // Number(...) em dinheiro: seria o float que SPECS 3.1 proíbe, reintroduzido
 // no último passo.
 export const api = {
+  // Quem é este nó. Com dois painéis iguais abertos, é o que diz qual é qual.
+  saude: () => pedir("/saude"),
+
   criarConta: (conta, saldoInicial) =>
     pedir("/contas", {
       metodo: "POST",
