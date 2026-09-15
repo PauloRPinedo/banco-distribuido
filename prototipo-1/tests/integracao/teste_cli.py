@@ -51,9 +51,11 @@ class TesteCli(unittest.TestCase):
         cls._temporario = tempfile.TemporaryDirectory()
         cls.porta = _porta_livre()
         cls.servidor = subprocess.Popen(
+            # `--armazem ficheiro`: a suíte tem de correr numa máquina sem
+            # PostgreSQL instalado (docs/CONVENCOES.md, secção 4).
             [sys.executable, "-m", "banco.servidor", "--id", "A",
              "--porta", str(cls.porta), "--endereco", "127.0.0.1",
-             "--dados", cls._temporario.name],
+             "--armazem", "ficheiro", "--dados", cls._temporario.name],
             cwd=RAIZ, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         pronto = _esperar_por(
             f"http://127.0.0.1:{cls.porta}/interno/estado", LIMITE_SEGUNDOS)

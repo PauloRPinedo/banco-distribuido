@@ -11,6 +11,8 @@ import urllib.request
 from pathlib import Path
 
 from banco.cluster.no import No
+from banco.dominio.erros import ArmazemIndisponivel
+from banco.persistencia.armazem_ficheiro import ArmazemEmFicheiro
 from banco.interface.servidor_http import criar_servidor
 
 
@@ -20,7 +22,7 @@ class BaseComServidor(unittest.TestCase):
         temporario = tempfile.TemporaryDirectory()
         self.addCleanup(temporario.cleanup)
 
-        self.no = No("A", Path(temporario.name))
+        self.no = No("A", ArmazemEmFicheiro(Path(temporario.name)))
         self.addCleanup(self.no.fechar)
 
         # Porta 0: o sistema escolhe uma livre. Fixar uma porta faria os testes
@@ -41,15 +43,21 @@ class BaseComServidor(unittest.TestCase):
         self.addCleanup(self.servidor.shutdown)
 
     def pedir(self, metodo, caminho, corpo=None):
+        estado, corpo_lido, _ = self.pedir_com_cabecalhos(metodo, caminho, corpo)
+        return estado, corpo_lido
+
+    def pedir_com_cabecalhos(self, metodo, caminho, corpo=None):
         dados = json.dumps(corpo).encode("utf-8") if corpo is not None else None
         pedido = urllib.request.Request(
             f"http://127.0.0.1:{self.porta}{caminho}", data=dados, method=metodo,
             headers={"Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(pedido, timeout=5) as resposta:
-                return resposta.status, json.loads(resposta.read())
+                bruto = resposta.read()
+                lido = json.loads(bruto) if bruto else {}
+                return resposta.status, lido, dict(resposta.headers)
         except urllib.error.HTTPError as erro:
-            return erro.code, json.loads(erro.read())
+            return erro.code, json.loads(erro.read()), dict(erro.headers)
 
 
 class TesteCaminhoFeliz(BaseComServidor):
@@ -182,13 +190,13 @@ class TesteFalhaDeDisco(BaseComServidor):
     estar em baixo: são dois problemas com soluções diferentes.
     """
 
-    def teste_falha_a_gravar_da_500_e_nao_deixa_a_ligacao_cair(self):
+    def teste_erro_inesperado_a_gravar_da_500_e_nao_deixa_a_ligacao_cair(self):
         self.pedir("POST", "/contas",
                    {"conta": "alice", "saldo_inicial": "100.00", "op_id": "c1"})
 
-        def disco_cheio(_entrada):
+        def falhar(_entrada):
             raise OSError(28, "No space left on device")
-        self.no.wal.acrescentar = disco_cheio
+        self.no.armazem.acrescentar = falhar
 
         # O rasto do erro é esperado e vai para stderr; aqui só faz ruído.
         with contextlib.redirect_stderr(io.StringIO()):
@@ -198,13 +206,48 @@ class TesteFalhaDeDisco(BaseComServidor):
         self.assertEqual(estado, 500)
         self.assertEqual(corpo["erro"], "erro_interno")
 
-    def teste_falha_a_gravar_nao_mexe_no_saldo(self):
+    def teste_armazem_indisponivel_da_503_e_nao_500(self):
+        """Disco cheio ou base em baixo não é "erro interno".
+
+        A distinção é para quem está do outro lado: 500 diz "algo se partiu, não
+        insistas"; 503 diz "o banco está de pé e não pôde gravar, repete com o
+        mesmo op_id quando passar". As duas situações pedem coisas diferentes a
+        quem está à frente do ecrã.
+        """
         self.pedir("POST", "/contas",
                    {"conta": "alice", "saldo_inicial": "100.00", "op_id": "c1"})
 
-        def disco_cheio(_entrada):
+        def sem_armazem(_entrada):
+            raise ArmazemIndisponivel("não foi possível gravar no log: disco cheio")
+        self.no.armazem.acrescentar = sem_armazem
+
+        estado, corpo = self.pedir("POST", "/contas/alice/deposito",
+                                   {"valor": "10.00", "op_id": "d1"})
+
+        self.assertEqual(estado, 503)
+        self.assertEqual(corpo["erro"], "armazem_indisponivel")
+
+    def teste_armazem_indisponivel_nao_mexe_no_saldo(self):
+        self.pedir("POST", "/contas",
+                   {"conta": "alice", "saldo_inicial": "100.00", "op_id": "c1"})
+
+        def sem_armazem(_entrada):
+            raise ArmazemIndisponivel("não foi possível gravar no log: disco cheio")
+        self.no.armazem.acrescentar = sem_armazem
+
+        self.pedir("POST", "/contas/alice/deposito",
+                   {"valor": "10.00", "op_id": "d1"})
+
+        _, alice = self.pedir("GET", "/contas/alice")
+        self.assertEqual(alice["saldo_centavos"], 10000)
+
+    def teste_erro_inesperado_a_gravar_nao_mexe_no_saldo(self):
+        self.pedir("POST", "/contas",
+                   {"conta": "alice", "saldo_inicial": "100.00", "op_id": "c1"})
+
+        def falhar(_entrada):
             raise OSError(28, "No space left on device")
-        self.no.wal.acrescentar = disco_cheio
+        self.no.armazem.acrescentar = falhar
 
         with contextlib.redirect_stderr(io.StringIO()):
             self.pedir("POST", "/contas/alice/deposito",
@@ -233,3 +276,65 @@ class TesteIdempotencia(BaseComServidor):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TesteCabecalhosDeOrigem(BaseComServidor):
+    """CORS: sem isto, o frontend na Vercel não consegue falar com o nó.
+
+    O navegador não mostra o corpo da resposta a uma página de outra origem se
+    estes cabeçalhos faltarem — e o sintoma, do lado de quem programa a página, é
+    um erro de rede que não distingue "o banco está em baixo" de "o banco
+    respondeu e o navegador deitou fora".
+    """
+
+    def teste_resposta_normal_traz_a_origem(self):
+        _, _, cabecalhos = self.pedir_com_cabecalhos("GET", "/auditoria")
+
+        self.assertEqual(cabecalhos["Access-Control-Allow-Origin"], "*")
+
+    def teste_resposta_de_erro_tambem_traz_a_origem(self):
+        """Se faltasse aqui, o frontend não conseguiria ler "saldo insuficiente".
+
+        Uma recusa do banco é informação que a página tem de mostrar; sem o
+        cabeçalho na resposta de erro, viraria um erro de rede genérico.
+        """
+        _, _, cabecalhos = self.pedir_com_cabecalhos("GET", "/contas/ninguem")
+
+        self.assertEqual(cabecalhos["Access-Control-Allow-Origin"], "*")
+
+    def teste_preflight_responde_204(self):
+        estado, _, cabecalhos = self.pedir_com_cabecalhos("OPTIONS", "/transferencias")
+
+        self.assertEqual(estado, 204)
+        self.assertIn("POST", cabecalhos["Access-Control-Allow-Methods"])
+        self.assertIn("Content-Type", cabecalhos["Access-Control-Allow-Headers"])
+
+    def teste_preflight_de_rota_inexistente_da_404(self):
+        """O preflight não pode dizer que sim a caminhos que não existem."""
+        estado, _, _ = self.pedir_com_cabecalhos("OPTIONS", "/inventada")
+
+        self.assertEqual(estado, 404)
+
+
+class TesteOrigemRestrita(unittest.TestCase):
+
+    def teste_origem_configurada_e_respeitada(self):
+        """`--origens` existe para quem quiser apertar em vez de usar `*`."""
+        temporario = tempfile.TemporaryDirectory()
+        self.addCleanup(temporario.cleanup)
+        no = No("A", ArmazemEmFicheiro(Path(temporario.name)))
+        self.addCleanup(no.fechar)
+        servidor = criar_servidor(no, "127.0.0.1", 0, "https://banco.vercel.app")
+        self.addCleanup(servidor.server_close)
+        porta = servidor.server_address[1]
+        thread = threading.Thread(target=servidor.serve_forever, args=(0.01,),
+                                  daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 5)
+        self.addCleanup(servidor.shutdown)
+
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{porta}/auditoria", timeout=5) as resposta:
+            origem = resposta.headers["Access-Control-Allow-Origin"]
+
+        self.assertEqual(origem, "https://banco.vercel.app")

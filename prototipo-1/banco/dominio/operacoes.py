@@ -18,6 +18,7 @@ CRIAR_CONTA = "criar_conta"
 DEPOSITO = "deposito"
 SAQUE = "saque"
 TRANSFERENCIA = "transferencia"
+NOOP = "noop"
 
 
 class Operacao:
@@ -228,3 +229,45 @@ def total_esperado(operacoes: list[Operacao]) -> int:
 def _falta(conta: str, saldo_centavos: int, pedido_centavos: int) -> str:
     return (f"{conta} tem {formatar(saldo_centavos)} e a operação pede "
             f"{formatar(pedido_centavos)}")
+
+
+@dataclass(frozen=True)
+class Noop:
+    """Uma entrada que não mexe em dinheiro nenhum (SPECS 8.4).
+
+    Serve uma única finalidade, e é subtil o suficiente para valer a explicação
+    escrita: um primário novo **não pode** confirmar uma entrada herdada do
+    primário anterior contando quantas réplicas a têm. Há um cenário conhecido em
+    que essa entrada acaba sobrescrita por um líder seguinte, e uma operação já
+    dada como confirmada desapareceria.
+
+    Gravando primeiro uma `noop` no seu próprio `epoch` e confirmando-a, tudo o
+    que vem antes fica confirmado por arrasto, em segurança.
+
+    Não toca em contas nenhumas, logo não toma locks nenhuns, e é neutra na
+    auditoria — se contasse para o total, um failover criaria dinheiro.
+    """
+
+    tipo: ClassVar[str] = NOOP
+
+    def contas_tocadas(self) -> tuple[str, ...]:
+        return ()
+
+    def validar(self, _livro: Livro) -> None:
+        """Nada a validar: não há conta nem valor."""
+
+    def aplicar(self, _livro: Livro, indice: int, _instante: float) -> dict:
+        return {"noop": True, "indice": indice}
+
+    def para_dados(self) -> dict:
+        return {}
+
+    @staticmethod
+    def de_dados(_dados: dict) -> "Noop":
+        return Noop()
+
+
+# Registada aqui e não no dicionário acima porque a classe só existe a partir
+# deste ponto do ficheiro. O dicionário fica com as quatro operações de dinheiro
+# juntas, que é como se lê melhor.
+_POR_TIPO[NOOP] = Noop

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from banco.cluster.concorrencia import RegistoDeLocks
 from banco.cluster.no import No
+from banco.persistencia.armazem_memoria import ArmazemEmMemoria
 from banco.dominio.erros import ErroDoBanco, SaldoInsuficiente
 from banco.dominio.operacoes import CriarConta, Saque, Transferencia
 
@@ -79,9 +80,10 @@ class TesteRegistoDeLocks(unittest.TestCase):
 class BaseComNo(unittest.TestCase):
 
     def setUp(self):
-        temporario = tempfile.TemporaryDirectory()
-        self.addCleanup(temporario.cleanup)
-        self.no = No("A", Path(temporario.name))
+        # Em memória: estes testes medem contenção de locks, e um fsync por
+        # operação em disco tornaria a suíte lenta sem exercitar nada de novo —
+        # a durabilidade é o assunto de teste_no.py e teste_armazem.py.
+        self.no = No("A", ArmazemEmMemoria())
         self.addCleanup(self.no.fechar)
 
 

@@ -1,14 +1,18 @@
 """As rotas de cliente da secção 6.1 de docs/SPECS.md.
 
-Cada rota é uma função pura sobre o nó: recebe os pedaços do caminho e o corpo
-já descodificado, e devolve um dicionário. Não sabe de HTTP — quem traduz
-estados e erros é `servidor_http`, num sítio só.
+Cada rota é uma função pura sobre o nó: recebe um `Pedido` e devolve um
+dicionário. Não sabe de HTTP — quem traduz estados e erros é `servidor_http`,
+num sítio só.
+
+As rotas internas entre nós estão em `rotas_internas`, e as de administração em
+`rotas_admin`. A divisão é por audiência, não por capricho: quem lê este
+ficheiro está a perguntar o que o banco oferece a um cliente.
 """
 
 import re
-from typing import Callable
 
 from banco.cluster.no import No
+from banco.interface.pedido import Pedido, Rota
 from banco.dominio.dinheiro import para_centavos
 from banco.dominio.erros import ValorInvalido
 from banco.dominio.operacoes import CriarConta, Deposito, Saque, Transferencia
@@ -48,42 +52,42 @@ def _texto(corpo: dict, campo: str) -> str:
     return bruto.strip()
 
 
-def criar_conta(no: No, _partes: tuple, corpo: dict) -> tuple[int, dict]:
+def criar_conta(no: No, pedido: Pedido) -> tuple[int, dict]:
+    corpo = pedido.corpo
     operacao = CriarConta(_texto(corpo, "conta"), _valor(corpo, "saldo_inicial"))
     return 201, no.executar(_op_id(corpo), operacao)
 
 
-def consultar_saldo(no: No, partes: tuple, _corpo: dict) -> tuple[int, dict]:
-    return 200, no.saldo(partes[0])
+def consultar_saldo(no: No, pedido: Pedido) -> tuple[int, dict]:
+    return 200, no.saldo(pedido.partes[0])
 
 
-def depositar(no: No, partes: tuple, corpo: dict) -> tuple[int, dict]:
-    return 200, no.executar(_op_id(corpo), Deposito(partes[0], _valor(corpo)))
+def depositar(no: No, pedido: Pedido) -> tuple[int, dict]:
+    corpo = pedido.corpo
+    return 200, no.executar(_op_id(corpo),
+                            Deposito(pedido.partes[0], _valor(corpo)))
 
 
-def sacar(no: No, partes: tuple, corpo: dict) -> tuple[int, dict]:
-    return 200, no.executar(_op_id(corpo), Saque(partes[0], _valor(corpo)))
+def sacar(no: No, pedido: Pedido) -> tuple[int, dict]:
+    corpo = pedido.corpo
+    return 200, no.executar(_op_id(corpo),
+                            Saque(pedido.partes[0], _valor(corpo)))
 
 
-def transferir(no: No, _partes: tuple, corpo: dict) -> tuple[int, dict]:
+def transferir(no: No, pedido: Pedido) -> tuple[int, dict]:
+    corpo = pedido.corpo
     operacao = Transferencia(_texto(corpo, "de"), _texto(corpo, "para"),
                              _valor(corpo))
     return 200, no.executar(_op_id(corpo), operacao)
 
 
-def consultar_extrato(no: No, partes: tuple, _corpo: dict) -> tuple[int, dict]:
-    return 200, no.extrato(partes[0])
+def consultar_extrato(no: No, pedido: Pedido) -> tuple[int, dict]:
+    return 200, no.extrato(pedido.partes[0])
 
 
-def auditar(no: No, _partes: tuple, _corpo: dict) -> tuple[int, dict]:
+def auditar(no: No, _pedido: Pedido) -> tuple[int, dict]:
     return 200, no.auditoria()
 
-
-def estado(no: No, _partes: tuple, _corpo: dict) -> tuple[int, dict]:
-    return 200, no.estado_do_no()
-
-
-Rota = tuple[str, re.Pattern, Callable]
 
 # A ordem importa: /contas/{id}/extrato tem de ser testada antes de /contas/{id}.
 ROTAS: list[Rota] = [
@@ -94,13 +98,4 @@ ROTAS: list[Rota] = [
     ("GET", re.compile(r"^/contas/([^/]+)/extrato$"), consultar_extrato),
     ("GET", re.compile(r"^/contas/([^/]+)$"), consultar_saldo),
     ("GET", re.compile(r"^/auditoria$"), auditar),
-    ("GET", re.compile(r"^/interno/estado$"), estado),
 ]
-
-
-def encontrar(metodo: str, caminho: str) -> tuple[Callable, tuple] | None:
-    for metodo_da_rota, padrao, funcao in ROTAS:
-        correspondencia = padrao.match(caminho)
-        if correspondencia and metodo_da_rota == metodo:
-            return funcao, correspondencia.groups()
-    return None
