@@ -28,7 +28,8 @@ class TesteMesmoOpId(CasoComServidor):
     def teste_transferencia_repetida_devolve_o_mesmo_corpo(self):
         self.criar_conta("alice", "100.00")
         self.criar_conta("bob", "0")
-        pedido = {"de": "alice", "para": "bob", "valor": "25.00", "op_id": "op-repetida-2"}
+        pedido = {"de": "alice", "para": "bob", "valor": "25.00",
+                  "op_id": "op-repetida-2"}
 
         _, primeira = self.pedir("POST", "/transferencias", pedido)
         _, segunda = self.pedir("POST", "/transferencias", pedido)

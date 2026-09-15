@@ -62,8 +62,10 @@ class TesteCaminhoFeliz(CasoComServidor):
 
     def teste_extrato_traz_os_movimentos_pela_ordem_em_que_aconteceram(self):
         self.criar_conta("alice", "100.00")
-        self.pedir("POST", "/contas/alice/deposito", {"valor": "10.00", "op_id": "op-dep-02"})
-        self.pedir("POST", "/contas/alice/saque", {"valor": "30.00", "op_id": "op-saq-02"})
+        self.pedir("POST", "/contas/alice/deposito",
+                   {"valor": "10.00", "op_id": "op-dep-02"})
+        self.pedir("POST", "/contas/alice/saque",
+                   {"valor": "30.00", "op_id": "op-saq-02"})
 
         _, corpo = self.pedir("GET", "/contas/alice/extrato")
 
@@ -102,8 +104,10 @@ class TesteCaminhoFeliz(CasoComServidor):
 
     def teste_auditoria_conta_os_depositos_e_os_saques(self):
         self.criar_conta("alice", "100.00")
-        self.pedir("POST", "/contas/alice/deposito", {"valor": "50.00", "op_id": "op-dep-03"})
-        self.pedir("POST", "/contas/alice/saque", {"valor": "20.00", "op_id": "op-saq-03"})
+        self.pedir("POST", "/contas/alice/deposito",
+                   {"valor": "50.00", "op_id": "op-dep-03"})
+        self.pedir("POST", "/contas/alice/saque",
+                   {"valor": "20.00", "op_id": "op-saq-03"})
 
         _, corpo = self.pedir("GET", "/auditoria")
 
@@ -134,7 +138,8 @@ class TesteErros(CasoComServidor):
 
     def teste_saque_recusado_nao_mexe_no_saldo(self):
         self.criar_conta("alice", "10.00")
-        self.pedir("POST", "/contas/alice/saque", {"valor": "500.00", "op_id": "op-sem-saldo-3"})
+        self.pedir("POST", "/contas/alice/saque",
+                   {"valor": "500.00", "op_id": "op-sem-saldo-3"})
 
         _, corpo = self.pedir("GET", "/contas/alice")
 
@@ -231,7 +236,8 @@ class TesteErros(CasoComServidor):
         self.criar_conta("alice", "100.00")
 
         self.pedir("POST", "/transferencias", {
-            "de": "alice", "para": "ninguem", "valor": "1.00", "op_id": "op-sem-destino-2"})
+            "de": "alice", "para": "ninguem", "valor": "1.00",
+            "op_id": "op-sem-destino-2"})
         _, corpo = self.pedir("GET", "/contas/alice")
 
         self.assertEqual(corpo["saldo_centavos"], 10000)
