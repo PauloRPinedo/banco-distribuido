@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CU-12 · Provocar falla</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body class="vista-panel">
+  <div class="panel">
+    <div class="panel-header">
+      <div class="marca">● Banco distribuido</div>
+      <h1>Inyección de fallas</h1>
+    </div>
+    <div class="panel-body">
+      <div class="grid-cards">
+        <div class="tarjeta">
+          <div class="campo">
+            <label>Nodo objetivo</label>
+            <select class="select-cuenta">
+              <option>Nodo A (primario)</option>
+              <option>Nodo B (réplica)</option>
+              <option>Nodo C (réplica)</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label>Tipo de falla</label>
+            <select class="select-cuenta">
+              <option>Derribar (kill del proceso)</option>
+              <option>Aislar de otros nodos</option>
+              <option>Atrasar respuestas (ms)</option>
+            </select>
+          </div>
+          <button class="btn-peligro">Aplicar falla</button>
+        </div>
+
+        <div class="tarjeta">
+          <div class="titulo-resumen">Fallas activas</div>
+          <table class="tabla-panel">
+            <thead><tr><th>Nodo</th><th>Falla</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>Nodo A</td><td>Aislado de B, C</td><td><button class="btn-secundario" style="min-height:32px; padding:0 12px;">Limpiar</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="aviso">
+        <span class="punto">●</span>
+        <span>Después de derribar el primario, seguir en CU-13 para ver la elección del nuevo primario en tiempo real.</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

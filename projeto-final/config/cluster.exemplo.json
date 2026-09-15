@@ -1,0 +1,11 @@
+{
+  "nos": [
+    {"id": "A", "endereco": "nodo-a", "porta": 8001},
+    {"id": "B", "endereco": "nodo-b", "porta": 8001},
+    {"id": "C", "endereco": "nodo-c", "porta": 8001}
+  ],
+  "heartbeat_ms": 150,
+  "timeout_eleicao_ms": [800, 1500],
+  "timeout_replicacao_ms": 500,
+  "semente": 42
+}
