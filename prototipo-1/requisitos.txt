@@ -1,0 +1,21 @@
+# As dependências do servidor. Instalam-se com:
+#
+#     pip install -r requisitos.txt
+#
+# Os testes de tests/unitarios/ não precisam de nenhuma delas: importam só o
+# domínio e a biblioteca padrão, e correm numa máquina limpa. Os de
+# tests/integracao/ saltam-se sozinhos, com o motivo escrito, se a pilha não
+# estiver instalada ou se não houver base de dados de teste.
+#
+# São as mesmas quatro do projeto final, de propósito: a mesma pilha nas duas
+# etapas é o que faz a passagem de uma para a outra ser uma questão de
+# acrescentar, e não de reescrever.
+#
+# psycopg2-binary sobe do 2.9.9 do projeto final para o 2.9.10: o 2.9.9 não
+# publica wheel para o Python 3.13 e tenta compilar a partir do código-fonte,
+# o que falha num portátil sem as bibliotecas de desenvolvimento do libpq.
+
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+psycopg2-binary==2.9.10
+pydantic==2.9.2

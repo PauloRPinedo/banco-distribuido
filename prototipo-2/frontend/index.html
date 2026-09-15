@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Banco Distribuído</title>
+<meta name="description" content="Painel do banco distribuído: total em circulação, operações, extrato e estado do cluster.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231B4DB1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 21h18'/%3E%3Cpath d='M5 21V10l7-5 7 5v11'/%3E%3Cpath d='M10 21v-6h4v6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<div class="folha">
+
+  <header class="topo">
+    <span class="marca">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><path d="M10 21v-6h4v6"/>
+      </svg>
+      Banco Distribuído
+    </span>
+
+    <div class="acoes-do-topo">
+      <span class="pastilha" id="pastilha-cluster">
+        <span class="ponto" id="ponto" aria-hidden="true"></span>
+        <span id="resumo-cluster">a ligar…</span>
+      </span>
+      <button type="button" class="discreto pequeno" id="botao-endereco"
+              aria-expanded="false" aria-controls="painel-endereco">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        Endereço
+      </button>
+    </div>
+  </header>
+
+  <!-- Configuração, e por isso escondida: o endereço do túnel muda a cada
+       arranque, mas não é o que alguém vem ver quando abre um banco. -->
+  <section class="cartao" id="painel-endereco" hidden>
+    <h2>Endereço do banco</h2>
+    <form id="form-endereco">
+      <div class="campos">
+        <label for="url-base">endereço do nó
+          <input id="url-base" name="url-base" type="url" inputmode="url"
+                 placeholder="https://xxxx.trycloudflare.com"
+                 autocomplete="off" spellcheck="false">
+        </label>
+      </div>
+      <p class="erro-do-campo" id="erro-endereco" role="alert" hidden></p>
+      <div class="botoes">
+        <button type="submit">Ligar</button>
+        <button type="button" class="discreto" id="botao-esquecer">Esquecer</button>
+      </div>
+    </form>
+    <p class="rotulo">
+      também se pode passar no endereço da página: <code>?api=https://…</code>
+    </p>
+  </section>
+
+  <nav class="abas" role="tablist" aria-label="Secções do banco">
+    <button role="tab" id="aba-inicio" aria-controls="ecra-inicio"
+            aria-selected="true" data-ecra="inicio">Início</button>
+    <button role="tab" id="aba-operacoes" aria-controls="ecra-operacoes"
+            aria-selected="false" tabindex="-1" data-ecra="operacoes">Operações</button>
+    <button role="tab" id="aba-extrato" aria-controls="ecra-extrato"
+            aria-selected="false" tabindex="-1" data-ecra="extrato">Extrato</button>
+    <button role="tab" id="aba-cluster" aria-controls="ecra-cluster"
+            aria-selected="false" tabindex="-1" data-ecra="cluster">Cluster</button>
+  </nav>
+
+  <!-- Região de avisos: anunciada, e sempre no mesmo sítio. -->
+  <div id="aviso" role="status" aria-live="polite"></div>
+
+  <!-- ------------------------------------------------------------- Início -->
+  <section id="ecra-inicio" role="tabpanel" aria-labelledby="aba-inicio" tabindex="0">
+    <div class="total" id="cartao-total">
+      <span class="rotulo">total em circulação</span>
+      <span class="numero esqueleto" id="total">R$ 0,00</span>
+      <span class="abaixo" id="sob-o-total">à espera do primeiro contacto</span>
+    </div>
+
+    <div class="cartoes">
+      <div class="cartao">
+        <h2>Contas</h2>
+        <div id="lista-contas">
+          <p class="rotulo">ainda sem contacto com o banco</p>
+        </div>
+      </div>
+
+      <div class="cartao">
+        <h2>Auditoria</h2>
+        <div class="linha">
+          <span class="tinta-media">pelos saldos</span>
+          <span id="auditoria-saldos">—</span>
+        </div>
+        <div class="linha">
+          <span class="tinta-media">pelo log</span>
+          <span id="auditoria-log">—</span>
+        </div>
+        <div class="fio"></div>
+        <p id="auditoria-veredito" class="rotulo">à espera do primeiro contacto</p>
+        <p class="rotulo">os dois lados são calculados por caminhos independentes:
+          é a igualdade entre eles que verifica alguma coisa</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- Operações -->
+  <section id="ecra-operacoes" role="tabpanel" aria-labelledby="aba-operacoes"
+           tabindex="0" hidden>
+    <div class="cartoes">
+      <div class="cartao">
+        <h2>Nova conta</h2>
+        <form id="form-conta">
+          <div class="campos">
+            <label for="conta-id">identificador
+              <input id="conta-id" name="conta" required autocomplete="off"
+                     spellcheck="false">
+            </label>
+            <label for="conta-saldo">saldo inicial
+              <input id="conta-saldo" name="saldo" value="0.00" inputmode="decimal"
+                     autocomplete="off" spellcheck="false">
+            </label>
+          </div>
+          <p class="erro-do-campo" id="erro-conta" role="alert" hidden></p>
+          <button type="submit">Criar conta</button>
+        </form>
+      </div>
+
+      <div class="cartao">
+        <h2>Depositar ou sacar</h2>
+        <form id="form-movimento">
+          <div class="campos">
+            <label for="mov-conta">conta
+              <input id="mov-conta" name="conta" required autocomplete="off"
+                     spellcheck="false">
+            </label>
+            <label for="mov-valor">valor
+              <input id="mov-valor" name="valor" required inputmode="decimal"
+                     placeholder="25.00" autocomplete="off" spellcheck="false">
+            </label>
+          </div>
+          <p class="erro-do-campo" id="erro-movimento" role="alert" hidden></p>
+          <div class="botoes">
+            <button type="submit">Depositar</button>
+            <button type="button" class="discreto" id="botao-sacar">Sacar</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="cartao">
+        <h2>Transferir</h2>
+        <form id="form-transferencia">
+          <div class="campos">
+            <label for="tr-de">de
+              <input id="tr-de" name="de" required autocomplete="off" spellcheck="false">
+            </label>
+            <label for="tr-para">para
+              <input id="tr-para" name="para" required autocomplete="off" spellcheck="false">
+            </label>
+            <label for="tr-valor">valor
+              <input id="tr-valor" name="valor" required inputmode="decimal"
+                     placeholder="25.00" autocomplete="off" spellcheck="false">
+            </label>
+          </div>
+          <p class="erro-do-campo" id="erro-transferencia" role="alert" hidden></p>
+          <button type="submit">Transferir</button>
+        </form>
+        <p class="rotulo">confirmada só depois de gravada na maioria dos nós</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ Extrato -->
+  <section id="ecra-extrato" role="tabpanel" aria-labelledby="aba-extrato"
+           tabindex="0" hidden>
+    <div class="cartao">
+      <h2>Extrato</h2>
+      <form id="form-extrato">
+        <div class="campos">
+          <label for="ex-conta">conta
+            <input id="ex-conta" name="conta" required autocomplete="off"
+                   spellcheck="false">
+          </label>
+        </div>
+        <p class="erro-do-campo" id="erro-extrato" role="alert" hidden></p>
+        <div class="botoes">
+          <button type="submit">Ver extrato</button>
+        </div>
+      </form>
+      <div class="rolavel" id="extrato"></div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ Cluster -->
+  <section id="ecra-cluster" role="tabpanel" aria-labelledby="aba-cluster"
+           tabindex="0" hidden>
+    <div class="cabecalho-de-ecra">
+      <h2>Estado do cluster</h2>
+      <p class="rotulo" id="fonte-do-cluster">cada nó é um cartão de extrato,
+        não um ponto colorido</p>
+    </div>
+    <div class="cartoes" id="nos"></div>
+  </section>
+
+  <footer class="rodape">
+    <p>Trabalho de Computação Distribuída · ICMC-USP, campus São Carlos</p>
+    <p>Jefferson Daniel Flores Montenegro · Cristhian Jesus Maylle Briceño ·
+       Paulo Sebastian Rojo Pinedo</p>
+    <p>Todas as operações continuam disponíveis no CLI, que é a interface oficial
+       do trabalho.</p>
+  </footer>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

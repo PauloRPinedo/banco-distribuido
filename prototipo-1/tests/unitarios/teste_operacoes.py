@@ -171,7 +171,7 @@ class TesteExtrato(BaseComDuasContas):
 
 class TesteSerializacao(unittest.TestCase):
 
-    def teste_operacao_sobrevive_a_ida_e_volta_pelo_wal(self):
+    def teste_operacao_sobrevive_a_ida_e_volta_pelo_log(self):
         for operacao in (CriarConta("alice", 100), Deposito("alice", 50),
                          Saque("alice", 25), Transferencia("alice", "bob", 10)):
             with self.subTest(tipo=operacao.tipo):

@@ -3,8 +3,6 @@
 Existe uma raiz única para a camada HTTP traduzir tudo num só sítio: cada erro
 carrega o seu código e o seu estado, e a rota não precisa de saber quais
 existem. Acrescentar um erro novo não obriga a mexer no servidor.
-
-Os códigos e estados são os da tabela da secção 6 de docs/SPECS.md.
 """
 
 

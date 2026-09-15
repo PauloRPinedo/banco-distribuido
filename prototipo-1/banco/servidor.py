@@ -1,47 +1,38 @@
 """Arranque de um nó do banco.
 
     python3 -m banco.servidor --id A --porta 8001
+
+Há um nó só nesta etapa, por isso `--id` é informativo: aparece no arranque e
+em `/saude`. Fica porque o comando é o mesmo da etapa 2, e um comando que não
+muda entre etapas é um detalhe a menos para explicar na defesa.
 """
 
 import argparse
+import os
 import sys
-from pathlib import Path
-
-from banco.cluster.no import No
-from banco.interface.servidor_http import criar_servidor
 
 
 def analisar(argumentos: list[str] | None = None) -> argparse.Namespace:
     analisador = argparse.ArgumentParser(
-        prog="banco.servidor", description="Um nó do banco distribuído.")
-    analisador.add_argument("--id", default="A",
-                            help="identificador do nó (por omissão: A)")
-    analisador.add_argument("--porta", type=int, default=8001)
-    analisador.add_argument("--endereco", default="0.0.0.0",
-                            help="endereço de escuta (por omissão: 0.0.0.0)")
-    analisador.add_argument("--dados", default="dados",
-                            help="diretório de estado (por omissão: dados/)")
+        prog="banco.servidor", description="Um nó do banco.")
+    analisador.add_argument(
+        "--id", default=os.environ.get("NO_ID", "A"),
+        help="identifica o nó no arranque e em /saude")
+    analisador.add_argument(
+        "--porta", type=int, default=int(os.environ.get("PORTA", "8001")))
+    analisador.add_argument(
+        "--endereco", default="0.0.0.0",
+        help="0.0.0.0, e não 127.0.0.1, para ser alcançável de outra máquina")
     return analisador.parse_args(argumentos)
 
 
 def main(argumentos: list[str] | None = None) -> int:
-    opcoes = analisar(argumentos)
-    no = No(opcoes.id, Path(opcoes.dados) / opcoes.id)
-    servidor = criar_servidor(no, opcoes.endereco, opcoes.porta)
+    import uvicorn
 
-    estado = no.estado_do_no()
-    # flush explícito: redirecionada para ficheiro, a saída fica em buffer e
-    # a linha de arranque só apareceria no fim, que é quando não serve.
-    print(f"nó {opcoes.id} em {opcoes.endereco}:{opcoes.porta} "
-          f"· {estado['contas']} contas recuperadas "
-          f"· último índice {estado['ultimo_indice']}", flush=True)
-    try:
-        servidor.serve_forever()
-    except KeyboardInterrupt:
-        print("\na terminar", flush=True)
-    finally:
-        servidor.server_close()
-        no.fechar()
+    opcoes = analisar(argumentos)
+    os.environ["NO_ID"] = opcoes.id
+    print(f"nó {opcoes.id} à escuta em {opcoes.endereco}:{opcoes.porta}", flush=True)
+    uvicorn.run("banco.api.app:app", host=opcoes.endereco, port=opcoes.porta)
     return 0
 
 
