@@ -2,7 +2,7 @@
 
 As guardas de salto vivem aqui, num sítio só, para o motivo do salto ser
 sempre o mesmo texto: quem corre a suite numa máquina limpa tem de perceber
-pela leitura porque é que 15 testes não correram.
+pela leitura porque é que uns testes não correram.
 
 O `import` da pilha está dentro de um `try`, e não no topo de cada teste de
 integração. Um `@skipUnless` numa classe não protege de um ImportError ao
@@ -13,6 +13,9 @@ promessa de correr os testes sem instalar nada caía no primeiro comando.
 import json
 import os
 import socket
+import subprocess
+import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -86,6 +89,28 @@ def _porta_livre() -> int:
         return tomada.getsockname()[1]
 
 
+def esta_de_pe(base: str) -> bool:
+    try:
+        with urllib.request.urlopen(f"{base}/saude", timeout=1) as resposta:
+            return resposta.status == 200
+    except Exception:
+        return False
+
+
+def pedir_a(base: str, metodo: str, caminho: str,
+            corpo: dict | None = None) -> tuple[int, dict]:
+    """Devolve (estado, corpo). Um erro HTTP é uma resposta, não uma exceção."""
+    dados = json.dumps(corpo).encode("utf-8") if corpo is not None else None
+    pedido = urllib.request.Request(
+        f"{base}{caminho}", data=dados, method=metodo,
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(pedido, timeout=30) as resposta:
+            return resposta.status, json.loads(resposta.read() or b"null")
+    except urllib.error.HTTPError as erro:
+        return erro.code, json.loads(erro.read() or b"null")
+
+
 class CasoComServidor(unittest.TestCase):
     """Um servidor a sério, a falar HTTP a sério, numa porta livre.
 
@@ -110,7 +135,7 @@ class CasoComServidor(unittest.TestCase):
         cls._fio = threading.Thread(target=cls._servidor.run, daemon=True)
         cls._fio.start()
 
-        if not esperar_ate(lambda: cls.esta_de_pe(cls.base)):
+        if not esperar_ate(lambda: esta_de_pe(cls.base)):
             raise RuntimeError("o servidor de teste não respondeu a /saude")
 
     @classmethod
@@ -118,32 +143,99 @@ class CasoComServidor(unittest.TestCase):
         cls._servidor.should_exit = True
         cls._fio.join(timeout=10)
 
-    @staticmethod
-    def esta_de_pe(base: str) -> bool:
-        try:
-            with urllib.request.urlopen(f"{base}/saude", timeout=1) as resposta:
-                return resposta.status == 200
-        except Exception:
-            return False
-
     def setUp(self) -> None:
         preparar_base()
 
     def pedir(self, metodo: str, caminho: str, corpo: dict | None = None
               ) -> tuple[int, dict]:
-        """Devolve (estado, corpo). Um erro HTTP é uma resposta, não uma exceção."""
-        dados = json.dumps(corpo).encode("utf-8") if corpo is not None else None
-        pedido = urllib.request.Request(
-            f"{self.base}{caminho}", data=dados, method=metodo,
-            headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(pedido, timeout=30) as resposta:
-                return resposta.status, json.loads(resposta.read() or b"null")
-        except urllib.error.HTTPError as erro:
-            return erro.code, json.loads(erro.read() or b"null")
+        return pedir_a(self.base, metodo, caminho, corpo)
 
     def criar_conta(self, identificador: str, saldo_inicial: str = "0") -> None:
         estado, corpo = self.pedir("POST", "/contas", {
+            "conta": identificador, "saldo_inicial": saldo_inicial,
+            "op_id": f"criar-{identificador}"})
+        self.assertEqual(estado, 200, corpo)
+
+
+class CasoComDoisNos(unittest.TestCase):
+    """Dois nós, em dois **processos** separados, contra a mesma base.
+
+    É a montagem dos dois portáteis, reduzida a uma máquina: o que faz dois
+    portáteis serem dois portáteis, do ponto de vista da base, é serem duas
+    ligações diferentes a pedir os mesmos locks — e isso reproduz-se aqui.
+
+    Dois processos, e não dois servidores no mesmo processo, porque a
+    afirmação que estes testes fazem é sobre nós independentes. Contra dois
+    fios ainda se pode objetar que partilham memória; contra dois processos com
+    `NO_ID` diferente não há objeção nenhuma.
+
+    O que isto não cobre, e é honesto dizê-lo: a rede entre as duas máquinas.
+    Aqui os dois nós falam com a base por `localhost`; nos portáteis falam por
+    internet, e é aí que aparecem as falhas de TLS e de firewall que o REDE.md
+    lista.
+    """
+
+    NOS = ("A", "B")
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        preparar_base()
+
+        cls._processos = []
+        cls._registos = []
+        cls.bases: dict[str, str] = {}
+
+        for no in cls.NOS:
+            porta = _porta_livre()
+            registo = tempfile.TemporaryFile()
+            processo = subprocess.Popen(
+                [sys.executable, "-m", "banco.servidor",
+                 "--id", no, "--porta", str(porta), "--endereco", "127.0.0.1"],
+                env={**os.environ, "BANCO_BD": BASE_DE_TESTE, "NO_ID": no},
+                stdout=registo, stderr=subprocess.STDOUT)
+            cls._processos.append(processo)
+            cls._registos.append(registo)
+            cls.bases[no] = f"http://127.0.0.1:{porta}"
+
+        for no, base in cls.bases.items():
+            if not esperar_ate(lambda alvo=base: esta_de_pe(alvo), 30.0):
+                saida = cls._saida_dos_nos()
+                cls.tearDownClass()
+                raise RuntimeError(f"o nó {no} não respondeu a /saude.\n{saida}")
+
+    @classmethod
+    def _saida_dos_nos(cls) -> str:
+        partes = []
+        for no, registo in zip(cls.NOS, cls._registos):
+            registo.seek(0)
+            partes.append(f"--- nó {no} ---\n"
+                          + registo.read().decode("utf-8", "replace")[-2000:])
+        return "\n".join(partes)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        for processo in getattr(cls, "_processos", []):
+            processo.terminate()
+        for processo in getattr(cls, "_processos", []):
+            try:
+                processo.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                processo.kill()
+        for registo in getattr(cls, "_registos", []):
+            registo.close()
+        cls._processos = []
+        cls._registos = []
+
+    def setUp(self) -> None:
+        preparar_base()
+
+    def pedir(self, no: str, metodo: str, caminho: str,
+              corpo: dict | None = None) -> tuple[int, dict]:
+        return pedir_a(self.bases[no], metodo, caminho, corpo)
+
+    def criar_conta(self, no: str, identificador: str,
+                    saldo_inicial: str = "0") -> None:
+        estado, corpo = self.pedir(no, "POST", "/contas", {
             "conta": identificador, "saldo_inicial": saldo_inicial,
             "op_id": f"criar-{identificador}"})
         self.assertEqual(estado, 200, corpo)
