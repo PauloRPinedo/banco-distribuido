@@ -1,0 +1,94 @@
+# Levanta todo localmente: 3 nodos, cada uno con su backend y su Postgres
+# como CONTENEDORES SEPARADOS que se hablan por red (nombre de servicio,
+# nunca localhost) — no hay replicación nativa entre los 3 Postgres, ver
+# GUIA-REPLICA-POSTGRESQL.md. Esto ya modela la topología real de
+# despliegue (backend y Postgres en instancias distintas, ver
+# GUIA-DESPLIEGUE.md): aquí "instancia" = contenedor; en producción,
+# "instancia" = máquina — el patrón de red es el mismo.
+# Uso: docker compose up --build
+
+x-nodo-comun: &nodo-comun
+  build: ./backend
+
+services:
+  postgres-a:
+    image: postgres:16-alpine
+    environment: &pg-comun
+      POSTGRES_DB: banco
+      POSTGRES_USER: banco
+      POSTGRES_PASSWORD: banco
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - datos-postgres-a:/var/lib/postgresql/data
+
+  postgres-b:
+    image: postgres:16-alpine
+    environment: *pg-comun
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - datos-postgres-b:/var/lib/postgresql/data
+
+  postgres-c:
+    image: postgres:16-alpine
+    environment: *pg-comun
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - datos-postgres-c:/var/lib/postgresql/data
+
+  nodo-a:
+    <<: *nodo-comun
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-llave-de-desarrollo-cambiar-en-produccion}
+      NODO_ID: A
+      PUERTO: "8001"
+      PGHOST: postgres-a
+      PGPORT: "5432"
+      PGDATABASE: banco
+      PGUSER: banco
+      PGPASSWORD: banco
+    depends_on: [postgres-a]
+
+  nodo-b:
+    <<: *nodo-comun
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-llave-de-desarrollo-cambiar-en-produccion}
+      NODO_ID: B
+      PUERTO: "8001"
+      PGHOST: postgres-b
+      PGPORT: "5432"
+      PGDATABASE: banco
+      PGUSER: banco
+      PGPASSWORD: banco
+    depends_on: [postgres-b]
+
+  nodo-c:
+    <<: *nodo-comun
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-llave-de-desarrollo-cambiar-en-produccion}
+      NODO_ID: C
+      PUERTO: "8001"
+      PGHOST: postgres-c
+      PGPORT: "5432"
+      PGDATABASE: banco
+      PGUSER: banco
+      PGPASSWORD: banco
+    depends_on: [postgres-c]
+
+  balanceador:
+    build: ./balanceador
+    volumes:
+      - ./config/cluster.exemplo.json:/config/cluster.json:ro
+    ports:
+      - "8000:8000"
+    depends_on: [nodo-a, nodo-b, nodo-c]
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on: [balanceador]
+
+volumes:
+  datos-postgres-a:
+  datos-postgres-b:
+  datos-postgres-c:

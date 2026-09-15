@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CU-05 · Transferir con conversión</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <div class="telefono">
+    <header>
+      <div class="volver">‹</div>
+      <h1>Transferir entre monedas</h1>
+    </header>
+
+    <main>
+      <div class="tarjeta">
+        <div class="campo">
+          <label>Cuenta origen</label>
+          <select class="select-cuenta">
+            <option>Cuenta corriente · R$ 1.240,00 (BRL)</option>
+            <option>Cuenta ahorro · R$ 300,00 (BRL)</option>
+          </select>
+        </div>
+
+        <div class="campo">
+          <label>Cuenta destino</label>
+          <select class="select-cuenta">
+            <option>Bob · Cuenta USD · $ 85,00 (USD)</option>
+            <option>Bob · Cuenta PEN · S/ 120,00 (PEN)</option>
+          </select>
+        </div>
+
+        <div class="campo">
+          <label>Monto a enviar</label>
+          <div class="fila-monto">
+            <input class="input-monto" type="text" value="100,00" inputmode="decimal">
+            <div class="chip-moneda">BRL</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="resumen-cambio">
+        <div class="titulo-resumen">Resumen de la conversión</div>
+        <div class="linea-resumen">
+          <span>Tasa vigente</span>
+          <strong>1 BRL = 0,20 USD</strong>
+        </div>
+        <div class="linea-resumen">
+          <span>Monto enviado</span>
+          <strong>R$ 100,00</strong>
+        </div>
+        <div class="linea-total">
+          <span class="etiqueta">Bob recibe</span>
+          <span class="valor">$ 20,00</span>
+        </div>
+      </div>
+
+      <div class="aviso">
+        <span class="punto">●</span>
+        <span>La tasa aplicada queda fija en el historial de esta operación, aunque cambie después.</span>
+      </div>
+
+      <button class="btn-confirmar">Confirmar transferencia</button>
+    </main>
+
+    <footer class="tab-bar">
+      <div class="tab"><div class="icono"></div>Inicio</div>
+      <div class="tab activo"><div class="icono"></div>Transferir</div>
+      <div class="tab"><div class="icono"></div>Extracto</div>
+      <div class="tab"><div class="icono"></div>Perfil</div>
+    </footer>
+  </div>
+</body>
+</html>
