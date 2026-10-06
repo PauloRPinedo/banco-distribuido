@@ -1,0 +1,286 @@
+# python3 -m unittest discover -s tests -v   (sem pilha, sem base)
+# Python 3.13.5, 2026-10-05T13:23:46-03:00
+teste_consultar_conta_alheia_e_403 (integracao.teste_acesso.TesteDono.teste_consultar_conta_alheia_e_403) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_depositar_em_conta_alheia_e_permitido (integracao.teste_acesso.TesteDono.teste_depositar_em_conta_alheia_e_permitido) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_extrato_de_conta_alheia_e_403 (integracao.teste_acesso.TesteDono.teste_extrato_de_conta_alheia_e_403) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_repetir_o_op_id_de_outro_nao_devolve_a_resposta_dele (integracao.teste_acesso.TesteDono.teste_repetir_o_op_id_de_outro_nao_devolve_a_resposta_dele) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_sacar_de_conta_alheia_e_403_e_nao_mexe_no_saldo (integracao.teste_acesso.TesteDono.teste_sacar_de_conta_alheia_e_403_e_nao_mexe_no_saldo) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_transferir_a_partir_de_conta_alheia_e_403 (integracao.teste_acesso.TesteDono.teste_transferir_a_partir_de_conta_alheia_e_403) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_transferir_para_conta_alheia_e_permitido (integracao.teste_acesso.TesteDono.teste_transferir_para_conta_alheia_e_permitido) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_abrir_conta_sem_sessao_e_401 (integracao.teste_acesso.TesteSessao.teste_abrir_conta_sem_sessao_e_401) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_listar_devolve_so_as_contas_de_quem_pede (integracao.teste_acesso.TesteSessao.teste_listar_devolve_so_as_contas_de_quem_pede) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_login_com_senha_errada_e_401 (integracao.teste_acesso.TesteSessao.teste_login_com_senha_errada_e_401) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_registo_com_email_repetido_e_409 (integracao.teste_acesso.TesteSessao.teste_registo_com_email_repetido_e_409) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_token_alterado_e_401 (integracao.teste_acesso.TesteSessao.teste_token_alterado_e_401) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_cada_escrita_fica_nas_tres_bases (integracao.teste_cluster.TesteCluster.teste_cada_escrita_fica_nas_tres_bases) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_ha_um_so_primario_e_as_replicas_dizem_quem_e (integracao.teste_cluster.TesteCluster.teste_ha_um_so_primario_e_as_replicas_dizem_quem_e) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_matar_o_primario_a_meio_de_transferencias_nao_muda_o_total (integracao.teste_cluster.TesteCluster.teste_matar_o_primario_a_meio_de_transferencias_nao_muda_o_total)
+RNF-01 no cenário que o projeto existe para resolver. ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_matar_o_primario_elege_outro_e_nada_se_perde (integracao.teste_cluster.TesteCluster.teste_matar_o_primario_elege_outro_e_nada_se_perde) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_o_no_morto_volta_como_replica_e_apanha_o_que_perdeu (integracao.teste_cluster.TesteCluster.teste_o_no_morto_volta_como_replica_e_apanha_o_que_perdeu) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_repetir_o_op_id_depois_do_failover_nao_duplica (integracao.teste_cluster.TesteCluster.teste_repetir_o_op_id_depois_do_failover_nao_duplica) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_sem_maioria_nao_se_escreve_mas_le_se (integracao.teste_cluster.TesteCluster.teste_sem_maioria_nao_se_escreve_mas_le_se) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_depositos_concorrentes_somam_todos (integracao.teste_concorrencia.TesteDepositosConcorrentes.teste_depositos_concorrentes_somam_todos) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_nenhum_saldo_fica_negativo (integracao.teste_concorrencia.TesteMuitasContas.teste_nenhum_saldo_fica_negativo) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_transferencias_concorrentes_nao_mudam_o_total (integracao.teste_concorrencia.TesteMuitasContas.teste_transferencias_concorrentes_nao_mudam_o_total) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_saques_concorrentes_deixam_o_saldo_a_zero (integracao.teste_concorrencia.TesteSaquesConcorrentes.teste_saques_concorrentes_deixam_o_saldo_a_zero) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_saques_concorrentes_nao_divergem_a_auditoria (integracao.teste_concorrencia.TesteSaquesConcorrentes.teste_saques_concorrentes_nao_divergem_a_auditoria) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_saques_concorrentes_nao_ultrapassam_o_saldo (integracao.teste_concorrencia.TesteSaquesConcorrentes.teste_saques_concorrentes_nao_ultrapassam_o_saldo) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_saques_concorrentes_recusam_os_restantes_por_saldo (integracao.teste_concorrencia.TesteSaquesConcorrentes.teste_saques_concorrentes_recusam_os_restantes_por_saldo) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_transferencias_cruzadas_nao_dao_deadlock (integracao.teste_concorrencia.TesteTransferenciasCruzadas.teste_transferencias_cruzadas_nao_dao_deadlock) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_transferencias_cruzadas_nao_mudam_o_total (integracao.teste_concorrencia.TesteTransferenciasCruzadas.teste_transferencias_cruzadas_nao_mudam_o_total) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_deposito_repetido_soma_uma_vez (integracao.teste_idempotencia.TesteMesmoOpId.teste_deposito_repetido_soma_uma_vez) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_mesmo_op_id_com_outro_valor_devolve_o_resultado_guardado (integracao.teste_idempotencia.TesteMesmoOpId.teste_mesmo_op_id_com_outro_valor_devolve_o_resultado_guardado) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_repeticao_nao_acrescenta_linha_ao_extrato (integracao.teste_idempotencia.TesteMesmoOpId.teste_repeticao_nao_acrescenta_linha_ao_extrato) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_repeticao_nao_diverge_a_auditoria (integracao.teste_idempotencia.TesteMesmoOpId.teste_repeticao_nao_diverge_a_auditoria) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_transferencia_repetida_devolve_o_mesmo_corpo (integracao.teste_idempotencia.TesteMesmoOpId.teste_transferencia_repetida_devolve_o_mesmo_corpo) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_transferencia_repetida_move_o_dinheiro_uma_vez (integracao.teste_idempotencia.TesteMesmoOpId.teste_transferencia_repetida_move_o_dinheiro_uma_vez) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_auditoria_por_moeda_nao_diverge_depois_de_um_cambio (integracao.teste_produtos.TesteCambio.teste_auditoria_por_moeda_nao_diverge_depois_de_um_cambio) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_autotransferencia_entre_moedas_converte (integracao.teste_produtos.TesteCambio.teste_autotransferencia_entre_moedas_converte) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_autotransferencia_para_conta_alheia_e_403 (integracao.teste_produtos.TesteCambio.teste_autotransferencia_para_conta_alheia_e_403) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_conversao_repetida_devolve_a_taxa_de_entao (integracao.teste_produtos.TesteCambio.teste_conversao_repetida_devolve_a_taxa_de_entao) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_conversao_usa_a_taxa_de_partida (integracao.teste_produtos.TesteCambio.teste_conversao_usa_a_taxa_de_partida) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_extrato_do_destino_mostra_o_valor_convertido (integracao.teste_produtos.TesteCambio.teste_extrato_do_destino_mostra_o_valor_convertido) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_taxa_nova_vale_para_a_conversao_seguinte (integracao.teste_produtos.TesteCambio.teste_taxa_nova_vale_para_a_conversao_seguinte) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_transferencia_simples_entre_moedas_e_409 (integracao.teste_produtos.TesteCambio.teste_transferencia_simples_entre_moedas_e_409) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_a_conta_mostra_o_produto_e_a_taxa (integracao.teste_produtos.TestePrazoFixo.teste_a_conta_mostra_o_produto_e_a_taxa) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_saque_antes_do_vencimento_e_409 (integracao.teste_produtos.TestePrazoFixo.teste_saque_antes_do_vencimento_e_409) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_tick_de_juros_nao_diverge_a_auditoria (integracao.teste_produtos.TestePrazoFixo.teste_tick_de_juros_nao_diverge_a_auditoria) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_auditoria_conta_o_que_saiu_e_o_que_voltou (integracao.teste_produtos.TesteTransferenciaExterna.teste_auditoria_conta_o_que_saiu_e_o_que_voltou) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_confirmada_debita (integracao.teste_produtos.TesteTransferenciaExterna.teste_confirmada_debita) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_rejeitada_devolve (integracao.teste_produtos.TesteTransferenciaExterna.teste_rejeitada_devolve) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_repetir_depois_de_confirmada_nao_devolve_mesmo_que_o_outro_banco_mude (integracao.teste_produtos.TesteTransferenciaExterna.teste_repetir_depois_de_confirmada_nao_devolve_mesmo_que_o_outro_banco_mude) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_sem_saldo_nem_chega_ao_outro_banco (integracao.teste_produtos.TesteTransferenciaExterna.teste_sem_saldo_nem_chega_ao_outro_banco) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_sistema_desconhecido_e_404 (integracao.teste_produtos.TesteTransferenciaExterna.teste_sistema_desconhecido_e_404) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_auditoria_conta_os_depositos_e_os_saques (integracao.teste_rotas.TesteCaminhoFeliz.teste_auditoria_conta_os_depositos_e_os_saques) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_auditoria_nao_diverge_depois_de_uma_transferencia (integracao.teste_rotas.TesteCaminhoFeliz.teste_auditoria_nao_diverge_depois_de_uma_transferencia) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_consultar_saldo_devolve_a_conta (integracao.teste_rotas.TesteCaminhoFeliz.teste_consultar_saldo_devolve_a_conta) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_criar_conta_devolve_o_saldo_em_texto (integracao.teste_rotas.TesteCaminhoFeliz.teste_criar_conta_devolve_o_saldo_em_texto) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_criar_conta_devolve_o_saldo_inicial (integracao.teste_rotas.TesteCaminhoFeliz.teste_criar_conta_devolve_o_saldo_inicial) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_deposito_soma_ao_saldo (integracao.teste_rotas.TesteCaminhoFeliz.teste_deposito_soma_ao_saldo) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_extrato_da_origem_mostra_a_transferencia_com_sinal_negativo (integracao.teste_rotas.TesteCaminhoFeliz.teste_extrato_da_origem_mostra_a_transferencia_com_sinal_negativo) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_extrato_do_destino_mostra_a_contraparte (integracao.teste_rotas.TesteCaminhoFeliz.teste_extrato_do_destino_mostra_a_contraparte) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_extrato_traz_os_movimentos_pela_ordem_em_que_aconteceram (integracao.teste_rotas.TesteCaminhoFeliz.teste_extrato_traz_os_movimentos_pela_ordem_em_que_aconteceram) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_saldo_inicial_e_zero_por_omissao (integracao.teste_rotas.TesteCaminhoFeliz.teste_saldo_inicial_e_zero_por_omissao) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_saque_subtrai_do_saldo (integracao.teste_rotas.TesteCaminhoFeliz.teste_saque_subtrai_do_saldo) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_transferencia_move_o_dinheiro_das_duas_contas (integracao.teste_rotas.TesteCaminhoFeliz.teste_transferencia_move_o_dinheiro_das_duas_contas) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_conta_duplicada_e_409 (integracao.teste_rotas.TesteErros.teste_conta_duplicada_e_409) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_conta_duplicada_nao_repoe_o_saldo (integracao.teste_rotas.TesteErros.teste_conta_duplicada_nao_repoe_o_saldo) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_conta_inexistente_e_404 (integracao.teste_rotas.TesteErros.teste_conta_inexistente_e_404) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_corpo_sem_op_id_e_recusado_com_a_forma_de_erro_do_banco (integracao.teste_rotas.TesteErros.teste_corpo_sem_op_id_e_recusado_com_a_forma_de_erro_do_banco) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_extrato_de_conta_inexistente_e_404 (integracao.teste_rotas.TesteErros.teste_extrato_de_conta_inexistente_e_404) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_id_de_conta_invalido_e_recusado (integracao.teste_rotas.TesteErros.teste_id_de_conta_invalido_e_recusado) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_op_id_mal_formado_e_recusado (integracao.teste_rotas.TesteErros.teste_op_id_mal_formado_e_recusado) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_saque_maior_que_o_saldo_e_recusado (integracao.teste_rotas.TesteErros.teste_saque_maior_que_o_saldo_e_recusado) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_saque_recusado_diz_quanto_ha_e_quanto_se_pediu (integracao.teste_rotas.TesteErros.teste_saque_recusado_diz_quanto_ha_e_quanto_se_pediu) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_saque_recusado_nao_mexe_no_saldo (integracao.teste_rotas.TesteErros.teste_saque_recusado_nao_mexe_no_saldo) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_transferencia_para_a_mesma_conta_e_recusada (integracao.teste_rotas.TesteErros.teste_transferencia_para_a_mesma_conta_e_recusada) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_transferencia_para_conta_inexistente_e_recusada (integracao.teste_rotas.TesteErros.teste_transferencia_para_conta_inexistente_e_recusada) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_transferencia_recusada_nao_mexe_na_origem (integracao.teste_rotas.TesteErros.teste_transferencia_recusada_nao_mexe_na_origem) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_valor_com_tres_casas_decimais_e_recusado (integracao.teste_rotas.TesteErros.teste_valor_com_tres_casas_decimais_e_recusado) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_valor_como_numero_json_e_recusado (integracao.teste_rotas.TesteErros.teste_valor_como_numero_json_e_recusado) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_valor_zero_e_recusado_num_deposito (integracao.teste_rotas.TesteErros.teste_valor_zero_e_recusado_num_deposito) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_hash_nunca_e_a_senha_em_claro (unitarios.teste_autenticacao.TesteHashDaSenha.teste_hash_nunca_e_a_senha_em_claro) ... ok
+teste_mesma_senha_da_hashes_diferentes (unitarios.teste_autenticacao.TesteHashDaSenha.teste_mesma_senha_da_hashes_diferentes) ... ok
+teste_senha_correta_verifica (unitarios.teste_autenticacao.TesteHashDaSenha.teste_senha_correta_verifica) ... ok
+teste_senha_incorreta_nao_verifica (unitarios.teste_autenticacao.TesteHashDaSenha.teste_senha_incorreta_nao_verifica) ... ok
+teste_token_alterado_e_rejeitado (unitarios.teste_autenticacao.TesteTokenDeSessao.teste_token_alterado_e_rejeitado) ... ok
+teste_token_valida_sem_chamar_quem_o_emitiu (unitarios.teste_autenticacao.TesteTokenDeSessao.teste_token_valida_sem_chamar_quem_o_emitiu) ... ok
+teste_token_valido_devolve_o_usuario (unitarios.teste_autenticacao.TesteTokenDeSessao.teste_token_valido_devolve_o_usuario) ... ok
+teste_ficheiro_que_nao_existe_diz_como_o_criar (unitarios.teste_configuracao.TesteCarregamento.teste_ficheiro_que_nao_existe_diz_como_o_criar) ... ok
+teste_le_o_exemplo_versionado (unitarios.teste_configuracao.TesteCarregamento.teste_le_o_exemplo_versionado)
+O ficheiro de exemplo do repositório tem de ser sempre válido. ... ok
+teste_url_de_um_no (unitarios.teste_configuracao.TesteCarregamento.teste_url_de_um_no) ... ok
+teste_dois_nos_maioria_continua_a_ser_dois (unitarios.teste_configuracao.TesteMaioria.teste_dois_nos_maioria_continua_a_ser_dois)
+O motivo pelo qual se correm 3 nós mesmo com 2 laptops. ... ok
+teste_tres_nos_maioria_dois (unitarios.teste_configuracao.TesteMaioria.teste_tres_nos_maioria_dois) ... ok
+teste_a_semente_de_um_no_e_sempre_a_mesma (unitarios.teste_configuracao.TesteSementePorNo.teste_a_semente_de_um_no_e_sempre_a_mesma)
+RNF-06: a mesma semente global tem de dar a mesma execução. ... ok
+teste_cada_no_sorteia_a_sua_semente (unitarios.teste_configuracao.TesteSementePorNo.teste_cada_no_sorteia_a_sua_semente)
+O erro mais caro desta etapa. ... ok
+teste_a_mensagem_diz_o_valor_maximo_aceitavel (unitarios.teste_configuracao.TesteValidacao.teste_a_mensagem_diz_o_valor_maximo_aceitavel)
+Um erro que não diz o passo seguinte deixa quem o lê onde estava. ... ok
+teste_campo_em_falta (unitarios.teste_configuracao.TesteValidacao.teste_campo_em_falta) ... ok
+teste_cluster_sem_nos (unitarios.teste_configuracao.TesteValidacao.teste_cluster_sem_nos) ... ok
+teste_dois_nos_no_mesmo_endereco_e_porta (unitarios.teste_configuracao.TesteValidacao.teste_dois_nos_no_mesmo_endereco_e_porta) ... ok
+teste_heartbeat_demasiado_perto_do_timeout (unitarios.teste_configuracao.TesteValidacao.teste_heartbeat_demasiado_perto_do_timeout)
+A validação que evita um cluster a trocar de primário sem parar. ... ok
+teste_ids_repetidos (unitarios.teste_configuracao.TesteValidacao.teste_ids_repetidos) ... ok
+teste_intervalo_de_eleicao_invertido (unitarios.teste_configuracao.TesteValidacao.teste_intervalo_de_eleicao_invertido) ... ok
+teste_no_desconhecido_lista_os_conhecidos (unitarios.teste_configuracao.TesteValidacao.teste_no_desconhecido_lista_os_conhecidos) ... ok
+teste_porta_como_booleano_e_recusada (unitarios.teste_configuracao.TesteValidacao.teste_porta_como_booleano_e_recusada)
+`bool` é subclasse de `int` em Python: sem cuidado, isto passava. ... ok
+teste_conta_criada_fica_com_o_saldo_inicial (unitarios.teste_contas.TesteLivro.teste_conta_criada_fica_com_o_saldo_inicial) ... ok
+teste_criar_a_mesma_conta_duas_vezes_e_recusado (unitarios.teste_contas.TesteLivro.teste_criar_a_mesma_conta_duas_vezes_e_recusado) ... ok
+teste_extrato_devolve_copia_e_nao_a_lista_interna (unitarios.teste_contas.TesteLivro.teste_extrato_devolve_copia_e_nao_a_lista_interna) ... ok
+teste_obter_conta_que_nao_existe_levanta_erro (unitarios.teste_contas.TesteLivro.teste_obter_conta_que_nao_existe_levanta_erro) ... ok
+teste_total_de_livro_vazio_e_zero (unitarios.teste_contas.TesteLivro.teste_total_de_livro_vazio_e_zero) ... ok
+teste_total_soma_todos_os_saldos (unitarios.teste_contas.TesteLivro.teste_total_soma_todos_os_saldos) ... ok
+teste_aceita_letras_digitos_traco_e_underscore (unitarios.teste_contas.TesteValidarId.teste_aceita_letras_digitos_traco_e_underscore) ... ok
+teste_recusa_maiusculas_espacos_e_acentos (unitarios.teste_contas.TesteValidarId.teste_recusa_maiusculas_espacos_e_acentos) ... ok
+teste_completa_os_centavos_com_zero (unitarios.teste_dinheiro.TesteFormatar.teste_completa_os_centavos_com_zero) ... ok
+teste_milhoes (unitarios.teste_dinheiro.TesteFormatar.teste_milhoes) ... ok
+teste_negativo_leva_o_sinal_a_frente (unitarios.teste_dinheiro.TesteFormatar.teste_negativo_leva_o_sinal_a_frente) ... ok
+teste_usa_ponto_nos_milhares_e_virgula_nos_decimais (unitarios.teste_dinheiro.TesteFormatar.teste_usa_ponto_nos_milhares_e_virgula_nos_decimais) ... ok
+teste_zero (unitarios.teste_dinheiro.TesteFormatar.teste_zero) ... ok
+teste_converter_e_formatar_devolve_o_valor_original (unitarios.teste_dinheiro.TesteIdaEVolta.teste_converter_e_formatar_devolve_o_valor_original) ... ok
+teste_espacos_a_volta_sao_ignorados (unitarios.teste_dinheiro.TesteParaCentavos.teste_espacos_a_volta_sao_ignorados) ... ok
+teste_ponto_e_virgula_dao_o_mesmo_valor (unitarios.teste_dinheiro.TesteParaCentavos.teste_ponto_e_virgula_dao_o_mesmo_valor) ... ok
+teste_texto_sem_numero_e_recusado (unitarios.teste_dinheiro.TesteParaCentavos.teste_texto_sem_numero_e_recusado) ... ok
+teste_tres_casas_decimais_sao_recusadas (unitarios.teste_dinheiro.TesteParaCentavos.teste_tres_casas_decimais_sao_recusadas) ... ok
+teste_uma_casa_decimal_e_aceite (unitarios.teste_dinheiro.TesteParaCentavos.teste_uma_casa_decimal_e_aceite) ... ok
+teste_valor_negativo_e_recusado (unitarios.teste_dinheiro.TesteParaCentavos.teste_valor_negativo_e_recusado) ... ok
+teste_valor_numerico_e_recusado (unitarios.teste_dinheiro.TesteParaCentavos.teste_valor_numerico_e_recusado) ... ok
+teste_valor_sem_decimais_e_aceite (unitarios.teste_dinheiro.TesteParaCentavos.teste_valor_sem_decimais_e_aceite) ... ok
+teste_zero_e_aceite_como_texto (unitarios.teste_dinheiro.TesteParaCentavos.teste_zero_e_aceite_como_texto) ... ok
+teste_assumir_falha_se_o_epoch_mudou (unitarios.teste_eleicao.TesteCandidatura.teste_assumir_falha_se_o_epoch_mudou)
+Entre pedir os votos e contá-los pode ter chegado um epoch maior. ... ok
+teste_candidatar_sobe_o_epoch_e_vota_em_si (unitarios.teste_eleicao.TesteCandidatura.teste_candidatar_sobe_o_epoch_e_vota_em_si) ... ok
+teste_o_pedido_leva_o_estado_do_log (unitarios.teste_eleicao.TesteCandidatura.teste_o_pedido_leva_o_estado_do_log) ... ok
+teste_um_primario_nao_se_candidata (unitarios.teste_eleicao.TesteCandidatura.teste_um_primario_nao_se_candidata) ... ok
+teste_epoch_igual_ou_menor_nao_despromove (unitarios.teste_eleicao.TesteFencing.teste_epoch_igual_ou_menor_nao_despromove) ... ok
+teste_epoch_maior_despromove_o_primario (unitarios.teste_eleicao.TesteFencing.teste_epoch_maior_despromove_o_primario)
+Um primário antigo que volta descobre aqui que já não manda. ... ok
+teste_ver_epoch_maior_esquece_o_voto (unitarios.teste_eleicao.TesteFencing.teste_ver_epoch_maior_esquece_o_voto) ... ok
+teste_um_primario_nunca_expira (unitarios.teste_eleicao.TesteHeartbeat.teste_um_primario_nunca_expira) ... ok
+teste_ver_o_lider_despromove_um_candidato (unitarios.teste_eleicao.TesteHeartbeat.teste_ver_o_lider_despromove_um_candidato) ... ok
+teste_ver_o_lider_reinicia_o_relogio (unitarios.teste_eleicao.TesteHeartbeat.teste_ver_o_lider_reinicia_o_relogio) ... ok
+teste_arranca_sempre_como_replica (unitarios.teste_eleicao.TestePapelInicial.teste_arranca_sempre_como_replica)
+Quem manda decide-se por eleição, nunca pela memória. ... ok
+teste_lembra_se_de_em_quem_votou (unitarios.teste_eleicao.TestePapelInicial.teste_lembra_se_de_em_quem_votou)
+Um voto esquecido é um voto repetido, e dois primários no mesmo epoch. ... ok
+teste_lembra_se_do_epoch_gravado (unitarios.teste_eleicao.TestePapelInicial.teste_lembra_se_do_epoch_gravado) ... ok
+teste_a_mesma_semente_da_o_mesmo_timeout (unitarios.teste_eleicao.TesteSementeDerivada.teste_a_mesma_semente_da_o_mesmo_timeout)
+RNF-06: a mesma semente global reproduz a mesma execução. ... ok
+teste_nos_diferentes_sorteiam_timeouts_diferentes (unitarios.teste_eleicao.TesteSementeDerivada.teste_nos_diferentes_sorteiam_timeouts_diferentes)
+O erro mais caro da etapa. ... ok
+teste_o_timeout_cai_dentro_do_intervalo (unitarios.teste_eleicao.TesteSementeDerivada.teste_o_timeout_cai_dentro_do_intervalo) ... ok
+teste_concede_ao_candidato_em_dia (unitarios.teste_eleicao.TesteVoto.teste_concede_ao_candidato_em_dia) ... ok
+teste_epoch_novo_esquece_o_voto_anterior (unitarios.teste_eleicao.TesteVoto.teste_epoch_novo_esquece_o_voto_anterior) ... ok
+teste_nao_vota_duas_vezes_no_mesmo_epoch (unitarios.teste_eleicao.TesteVoto.teste_nao_vota_duas_vezes_no_mesmo_epoch)
+Sem isto, dois candidatos diferentes poderiam somar maioria. ... ok
+teste_o_epoch_do_log_pesa_mais_que_o_indice (unitarios.teste_eleicao.TesteVoto.teste_o_epoch_do_log_pesa_mais_que_o_indice)
+Um log mais curto mas de um epoch mais recente ganha. ... ok
+teste_o_motivo_da_recusa_e_sempre_dito (unitarios.teste_eleicao.TesteVoto.teste_o_motivo_da_recusa_e_sempre_dito)
+Sem o motivo, depurar uma eleição é adivinhar. ... ok
+teste_recusa_candidato_com_log_atrasado (unitarios.teste_eleicao.TesteVoto.teste_recusa_candidato_com_log_atrasado)
+A condição 3: é ela que impede uma operação confirmada de se perder. ... ok
+teste_recusa_epoch_menor (unitarios.teste_eleicao.TesteVoto.teste_recusa_epoch_menor) ... ok
+teste_repetir_o_pedido_do_mesmo_candidato_e_aceite (unitarios.teste_eleicao.TesteVoto.teste_repetir_o_pedido_do_mesmo_candidato_e_aceite)
+A resposta pode ter-se perdido; repetir tem de ser seguro. ... ok
+teste_3000_transferencias_nao_mudam_o_total (unitarios.teste_invariante.TesteInvarianteDoDinheiro.teste_3000_transferencias_nao_mudam_o_total) ... ok
+teste_a_mesma_semente_produz_o_mesmo_resultado (unitarios.teste_invariante.TesteInvarianteDoDinheiro.teste_a_mesma_semente_produz_o_mesmo_resultado) ... ok
+teste_nenhum_saldo_fica_negativo (unitarios.teste_invariante.TesteInvarianteDoDinheiro.teste_nenhum_saldo_fica_negativo) ... ok
+teste_sementes_diferentes_produzem_resultados_diferentes (unitarios.teste_invariante.TesteInvarianteDoDinheiro.teste_sementes_diferentes_produzem_resultados_diferentes) ... ok
+teste_soma_dos_saldos_bate_com_o_total_esperado (unitarios.teste_invariante.TesteInvarianteDoDinheiro.teste_soma_dos_saldos_bate_com_o_total_esperado) ... ok
+teste_aceita_entradas_novas (unitarios.teste_log_de_replicacao.TesteAcrescentarDoLider.teste_aceita_entradas_novas) ... ok
+teste_entradas_divergentes_sao_substituidas (unitarios.teste_log_de_replicacao.TesteAcrescentarDoLider.teste_entradas_divergentes_sao_substituidas)
+O log do líder ganha: é ele que tem o mandato. ... ok
+teste_lote_vazio_nao_faz_nada (unitarios.teste_log_de_replicacao.TesteAcrescentarDoLider.teste_lote_vazio_nao_faz_nada) ... ok
+teste_repetir_um_lote_ja_recebido_e_inofensivo (unitarios.teste_log_de_replicacao.TesteAcrescentarDoLider.teste_repetir_um_lote_ja_recebido_e_inofensivo)
+O líder reenvia quando a resposta se perde; não pode duplicar nada. ... ok
+teste_avanca (unitarios.teste_log_de_replicacao.TesteCommit.teste_avanca) ... ok
+teste_nunca_passa_do_que_tenho (unitarios.teste_log_de_replicacao.TesteCommit.teste_nunca_passa_do_que_tenho)
+O líder anuncia o commit dele, que pode estar à frente desta réplica. ... ok
+teste_nunca_recua (unitarios.teste_log_de_replicacao.TesteCommit.teste_nunca_recua) ... ok
+teste_sobrevive_a_reabertura_do_log (unitarios.teste_log_de_replicacao.TesteCommit.teste_sobrevive_a_reabertura_do_log) ... ok
+teste_corresponde_quando_o_epoch_bate (unitarios.teste_log_de_replicacao.TesteCorrespondencia.teste_corresponde_quando_o_epoch_bate) ... ok
+teste_indice_zero_corresponde_sempre (unitarios.teste_log_de_replicacao.TesteCorrespondencia.teste_indice_zero_corresponde_sempre)
+Índice 0 é "antes do princípio": não há nada com que discordar. ... ok
+teste_nao_corresponde_com_epoch_diferente (unitarios.teste_log_de_replicacao.TesteCorrespondencia.teste_nao_corresponde_com_epoch_diferente)
+É aqui que se apanha um log divergente sem comparar tudo. ... ok
+teste_nao_corresponde_com_indice_que_nao_tenho (unitarios.teste_log_de_replicacao.TesteCorrespondencia.teste_nao_corresponde_com_indice_que_nao_tenho) ... ok
+teste_nunca_trunca_abaixo_do_commit (unitarios.teste_log_de_replicacao.TesteTruncar.teste_nunca_trunca_abaixo_do_commit)
+A regra que não se negoceia. ... ok
+teste_pode_truncar_acima_do_commit (unitarios.teste_log_de_replicacao.TesteTruncar.teste_pode_truncar_acima_do_commit) ... ok
+teste_trunca_a_partir_do_indice (unitarios.teste_log_de_replicacao.TesteTruncar.teste_trunca_a_partir_do_indice) ... ok
+teste_truncar_acima_do_fim_nao_faz_nada (unitarios.teste_log_de_replicacao.TesteTruncar.teste_truncar_acima_do_fim_nao_faz_nada) ... ok
+teste_as_replicas_conhecem_o_primario (unitarios.teste_no.TesteEleicao.teste_as_replicas_conhecem_o_primario) ... ok
+teste_ha_exatamente_um_primario (unitarios.teste_no.TesteEleicao.teste_ha_exatamente_um_primario) ... ok
+teste_uma_replica_recusa_escritas_e_diz_quem_manda (unitarios.teste_no.TesteEleicao.teste_uma_replica_recusa_escritas_e_diz_quem_manda) ... ok
+teste_a_soma_nao_muda_com_o_primario_a_morrer_a_meio (unitarios.teste_no.TesteFailover.teste_a_soma_nao_muda_com_o_primario_a_morrer_a_meio)
+Transferências em paralelo e o primário cai a meio. ... ok
+teste_cair_o_primario_elege_outro_com_epoch_maior (unitarios.teste_no.TesteFailover.teste_cair_o_primario_elege_outro_com_epoch_maior) ... ok
+teste_nada_confirmado_se_perde_no_failover (unitarios.teste_no.TesteFailover.teste_nada_confirmado_se_perde_no_failover) ... ok
+teste_o_no_que_volta_e_replica_e_poe_se_em_dia (unitarios.teste_no.TesteFailover.teste_o_no_que_volta_e_replica_e_poe_se_em_dia) ... ok
+teste_o_novo_primario_aceita_escritas (unitarios.teste_no.TesteFailover.teste_o_novo_primario_aceita_escritas) ... ok
+teste_repetir_o_op_id_depois_do_failover_nao_duplica (unitarios.teste_no.TesteFailover.teste_repetir_o_op_id_depois_do_failover_nao_duplica)
+O cliente não recebeu resposta porque o primário morreu: repete. ... ok
+teste_o_primario_isolado_e_substituido_e_nao_escreve (unitarios.teste_no.TesteParticao.teste_o_primario_isolado_e_substituido_e_nao_escreve)
+Sem split-brain: do lado minoritário não se confirma nada. ... ok
+teste_cada_escrita_chega_aos_tres_nos (unitarios.teste_no.TesteReplicacao.teste_cada_escrita_chega_aos_tres_nos) ... ok
+teste_o_mesmo_op_id_aplica_se_uma_vez (unitarios.teste_no.TesteReplicacao.teste_o_mesmo_op_id_aplica_se_uma_vez) ... ok
+teste_os_tres_logs_sao_iguais (unitarios.teste_no.TesteReplicacao.teste_os_tres_logs_sao_iguais) ... ok
+teste_a_escrita_por_confirmar_e_confirmada_quando_a_maioria_volta (unitarios.teste_no.TesteSemMaioria.teste_a_escrita_por_confirmar_e_confirmada_quando_a_maioria_volta) ... ok
+teste_com_dois_nos_em_baixo_o_que_resta_nao_escreve (unitarios.teste_no.TesteSemMaioria.teste_com_dois_nos_em_baixo_o_que_resta_nao_escreve) ... ok
+teste_operacoes_de_uma_conta_devolvem_so_essa (unitarios.teste_operacoes.TesteContasTocadas.teste_operacoes_de_uma_conta_devolvem_so_essa) ... ok
+teste_transferencia_devolve_as_contas_por_ordem_crescente (unitarios.teste_operacoes.TesteContasTocadas.teste_transferencia_devolve_as_contas_por_ordem_crescente) ... ok
+teste_conta_nasce_com_o_saldo_inicial (unitarios.teste_operacoes.TesteCriarConta.teste_conta_nasce_com_o_saldo_inicial) ... ok
+teste_conta_repetida_e_recusada (unitarios.teste_operacoes.TesteCriarConta.teste_conta_repetida_e_recusada) ... ok
+teste_id_invalido_e_recusado (unitarios.teste_operacoes.TesteCriarConta.teste_id_invalido_e_recusado) ... ok
+teste_saldo_inicial_negativo_e_recusado (unitarios.teste_operacoes.TesteCriarConta.teste_saldo_inicial_negativo_e_recusado) ... ok
+teste_deposito_aumenta_o_saldo (unitarios.teste_operacoes.TesteDeposito.teste_deposito_aumenta_o_saldo) ... ok
+teste_deposito_de_zero_e_recusado (unitarios.teste_operacoes.TesteDeposito.teste_deposito_de_zero_e_recusado) ... ok
+teste_deposito_em_conta_inexistente_e_recusado (unitarios.teste_operacoes.TesteDeposito.teste_deposito_em_conta_inexistente_e_recusado) ... ok
+teste_deposito_negativo_e_recusado (unitarios.teste_operacoes.TesteDeposito.teste_deposito_negativo_e_recusado) ... ok
+teste_movimento_guarda_o_saldo_depois (unitarios.teste_operacoes.TesteExtrato.teste_movimento_guarda_o_saldo_depois) ... ok
+teste_transferencia_aparece_nas_duas_contas_com_sinais_opostos (unitarios.teste_operacoes.TesteExtrato.teste_transferencia_aparece_nas_duas_contas_com_sinais_opostos) ... ok
+teste_mensagem_do_erro_traz_os_dois_valores (unitarios.teste_operacoes.TesteSaque.teste_mensagem_do_erro_traz_os_dois_valores) ... ok
+teste_saque_diminui_o_saldo (unitarios.teste_operacoes.TesteSaque.teste_saque_diminui_o_saldo) ... ok
+teste_saque_do_saldo_inteiro_e_permitido (unitarios.teste_operacoes.TesteSaque.teste_saque_do_saldo_inteiro_e_permitido) ... ok
+teste_saque_maior_que_o_saldo_e_recusado (unitarios.teste_operacoes.TesteSaque.teste_saque_maior_que_o_saldo_e_recusado) ... ok
+teste_saque_recusado_nao_mexe_no_saldo (unitarios.teste_operacoes.TesteSaque.teste_saque_recusado_nao_mexe_no_saldo) ... ok
+teste_operacao_sobrevive_a_ida_e_volta_pelo_log (unitarios.teste_operacoes.TesteSerializacao.teste_operacao_sobrevive_a_ida_e_volta_pelo_log) ... ok
+teste_tipo_desconhecido_e_recusado (unitarios.teste_operacoes.TesteSerializacao.teste_tipo_desconhecido_e_recusado) ... ok
+teste_bate_com_a_soma_dos_saldos (unitarios.teste_operacoes.TesteTotalEsperado.teste_bate_com_a_soma_dos_saldos) ... ok
+teste_transferencia_e_neutra_no_total (unitarios.teste_operacoes.TesteTotalEsperado.teste_transferencia_e_neutra_no_total) ... ok
+teste_destino_inexistente_e_recusado_sem_debitar (unitarios.teste_operacoes.TesteTransferencia.teste_destino_inexistente_e_recusado_sem_debitar) ... ok
+teste_move_o_valor_entre_as_duas_contas (unitarios.teste_operacoes.TesteTransferencia.teste_move_o_valor_entre_as_duas_contas) ... ok
+teste_nao_muda_o_total_em_circulacao (unitarios.teste_operacoes.TesteTransferencia.teste_nao_muda_o_total_em_circulacao) ... ok
+teste_transferencia_recusada_nao_mexe_em_nenhuma_conta (unitarios.teste_operacoes.TesteTransferencia.teste_transferencia_recusada_nao_mexe_em_nenhuma_conta) ... ok
+teste_transferencia_sem_saldo_e_recusada (unitarios.teste_operacoes.TesteTransferencia.teste_transferencia_sem_saldo_e_recusada) ... ok
+teste_transferir_para_a_propria_conta_e_recusado (unitarios.teste_operacoes.TesteTransferencia.teste_transferir_para_a_propria_conta_e_recusado) ... ok
+teste_cambio_debita_na_origem_e_credita_convertido (unitarios.teste_produtos.TesteMoedas.teste_cambio_debita_na_origem_e_credita_convertido) ... ok
+teste_cambio_na_mesma_moeda_e_recusado (unitarios.teste_produtos.TesteMoedas.teste_cambio_na_mesma_moeda_e_recusado) ... ok
+teste_cambio_que_nao_chega_a_um_centavo_e_recusado (unitarios.teste_produtos.TesteMoedas.teste_cambio_que_nao_chega_a_um_centavo_e_recusado) ... ok
+teste_cambio_reconstroi_se_do_log_com_a_mesma_taxa (unitarios.teste_produtos.TesteMoedas.teste_cambio_reconstroi_se_do_log_com_a_mesma_taxa) ... ok
+teste_cambio_sem_saldo_e_recusado_sem_mexer_em_nada (unitarios.teste_produtos.TesteMoedas.teste_cambio_sem_saldo_e_recusado_sem_mexer_em_nada) ... ok
+teste_moeda_desconhecida_e_recusada (unitarios.teste_produtos.TesteMoedas.teste_moeda_desconhecida_e_recusada) ... ok
+teste_transferencia_entre_moedas_e_recusada (unitarios.teste_produtos.TesteMoedas.teste_transferencia_entre_moedas_e_recusada) ... ok
+teste_transferencia_na_mesma_moeda_continua_a_funcionar (unitarios.teste_produtos.TesteMoedas.teste_transferencia_na_mesma_moeda_continua_a_funcionar) ... ok
+teste_conta_corrente_nao_tem_juros (unitarios.teste_produtos.TestePoupanca.teste_conta_corrente_nao_tem_juros) ... ok
+teste_corrente_com_taxa_e_recusada (unitarios.teste_produtos.TestePoupanca.teste_corrente_com_taxa_e_recusada) ... ok
+teste_da_poupanca_pode_sacar_se (unitarios.teste_produtos.TestePoupanca.teste_da_poupanca_pode_sacar_se) ... ok
+teste_juros_nao_se_pagam_duas_vezes_pelo_mesmo_periodo (unitarios.teste_produtos.TestePoupanca.teste_juros_nao_se_pagam_duas_vezes_pelo_mesmo_periodo) ... ok
+teste_poupanca_sem_taxa_e_recusada (unitarios.teste_produtos.TestePoupanca.teste_poupanca_sem_taxa_e_recusada) ... ok
+teste_um_ano_a_dez_por_cento_rende_dez_por_cento (unitarios.teste_produtos.TestePoupanca.teste_um_ano_a_dez_por_cento_rende_dez_por_cento) ... ok
+teste_depois_de_pagos_os_juros_do_prazo_nao_se_repetem (unitarios.teste_produtos.TestePrazoFixo.teste_depois_de_pagos_os_juros_do_prazo_nao_se_repetem) ... ok
+teste_depois_de_vencer_o_dinheiro_sai (unitarios.teste_produtos.TestePrazoFixo.teste_depois_de_vencer_o_dinheiro_sai) ... ok
+teste_juros_antes_de_vencer_nao_ha (unitarios.teste_produtos.TestePrazoFixo.teste_juros_antes_de_vencer_nao_ha) ... ok
+teste_juros_pagam_se_uma_vez_ate_ao_vencimento (unitarios.teste_produtos.TestePrazoFixo.teste_juros_pagam_se_uma_vez_ate_ao_vencimento) ... ok
+teste_prazo_fixo_sem_prazo_e_recusado (unitarios.teste_produtos.TestePrazoFixo.teste_prazo_fixo_sem_prazo_e_recusado) ... ok
+teste_saque_antes_do_vencimento_e_bloqueado (unitarios.teste_produtos.TestePrazoFixo.teste_saque_antes_do_vencimento_e_bloqueado) ... ok
+teste_transferencia_antes_do_vencimento_e_bloqueada (unitarios.teste_produtos.TestePrazoFixo.teste_transferencia_antes_do_vencimento_e_bloqueada) ... ok
+teste_conversao_arredonda_para_baixo (unitarios.teste_produtos.TesteTaxas.teste_conversao_arredonda_para_baixo) ... ok
+teste_formatar_em_dolares_e_soles (unitarios.teste_produtos.TesteTaxas.teste_formatar_em_dolares_e_soles) ... ok
+teste_formatar_taxa (unitarios.teste_produtos.TesteTaxas.teste_formatar_taxa) ... ok
+teste_taxa_com_sete_casas_e_recusada (unitarios.teste_produtos.TesteTaxas.teste_taxa_com_sete_casas_e_recusada) ... ok
+teste_taxa_em_texto_vira_milionesimos (unitarios.teste_produtos.TesteTaxas.teste_taxa_em_texto_vira_milionesimos) ... ok
+teste_taxa_zero_e_recusada (unitarios.teste_produtos.TesteTaxas.teste_taxa_zero_e_recusada) ... ok
+teste_confirmada_nao_devolve (unitarios.teste_produtos.TesteTransferenciaExterna.teste_confirmada_nao_devolve) ... ok
+teste_o_debito_sai_logo (unitarios.teste_produtos.TesteTransferenciaExterna.teste_o_debito_sai_logo) ... ok
+teste_o_total_esperado_conta_a_saida_e_a_devolucao (unitarios.teste_produtos.TesteTransferenciaExterna.teste_o_total_esperado_conta_a_saida_e_a_devolucao) ... ok
+teste_rejeitada_devolve_o_valor_inteiro (unitarios.teste_produtos.TesteTransferenciaExterna.teste_rejeitada_devolve_o_valor_inteiro) ... ok
+teste_sem_saldo_nao_sai_nada (unitarios.teste_produtos.TesteTransferenciaExterna.teste_sem_saldo_nao_sai_nada) ... ok
+teste_dono_certo_nao_lanca_nada (unitarios.teste_seguranca.TesteExigirDono.teste_dono_certo_nao_lanca_nada) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_dono_errado_e_proibido (unitarios.teste_seguranca.TesteExigirDono.teste_dono_errado_e_proibido) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_cabecalho_sem_bearer_e_sem_sessao (unitarios.teste_seguranca.TesteUsuarioAutenticado.teste_cabecalho_sem_bearer_e_sem_sessao) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_sem_cabecalho_e_sem_sessao (unitarios.teste_seguranca.TesteUsuarioAutenticado.teste_sem_cabecalho_e_sem_sessao) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_sem_sessao_sai_como_401 (unitarios.teste_seguranca.TesteUsuarioAutenticado.teste_sem_sessao_sai_como_401) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_token_invalido_e_sem_sessao (unitarios.teste_seguranca.TesteUsuarioAutenticado.teste_token_invalido_e_sem_sessao) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+teste_token_valido_devolve_o_usuario_id (unitarios.teste_seguranca.TesteUsuarioAutenticado.teste_token_valido_devolve_o_usuario_id) ... skipped 'requer a pilha do servidor: pip install -r requisitos.txt'
+
+----------------------------------------------------------------------
+Ran 251 tests in 5.748s
+
+OK (skipped=86)

@@ -1,22 +1,141 @@
-# Alternativa para o laptop onde a instalação nativa do PostgreSQL se resista.
+# Sobe o cluster inteiro numa máquina:
 #
-#   docker compose up -d
-#   ./scripts/preparar_postgres.sh          # com PGHOST=localhost PGUSER=banco
+#     SECRET_KEY=$(openssl rand -hex 32) docker compose up --build
 #
-# A versão está fixa de propósito: "postgres:latest" faria dois laptops correrem
-# versões diferentes sem ninguém dar por isso, e a demonstração é em duas
-# máquinas.
+# Painel em http://localhost:8080, balanceador em :8000, e cada nó também à
+# vista em :8001 (A), :8002 (B) e :8003 (C) para se poder falar com um só.
+#
+# Três nós, cada um com o seu backend e o seu Postgres em CONTENTORES SEPARADOS
+# que falam pela rede (nome do serviço, nunca localhost). Os três Postgres não
+# se conhecem: os backends elegem um primário, replicam o log entre si e cada um
+# aplica-o à sua base (docs/GUIA-REPLICA-POSTGRESQL.md).
+#
+# Para ver o failover: `docker compose kill no-a` (ou o nó que for primário,
+# no separador Cluster do painel) e, depois, `docker compose start no-a`.
+# Aqui "instância" = contentor; na AWS, "instância" = máquina — o padrão de
+# rede é o mesmo.
+
+x-postgres: &postgres
+  # Versão fixa: `postgres:latest` faria a demonstração depender do dia em que
+  # a imagem foi descarregada.
+  image: postgres:16-alpine
+  environment:
+    POSTGRES_DB: banco
+    POSTGRES_USER: banco
+    POSTGRES_PASSWORD: banco
+  healthcheck:
+    # Sem isto, o nó arranca antes de o esquema estar criado. Um `depends_on`
+    # simples só espera pelo arranque do contentor, não pela base pronta.
+    test: ["CMD-SHELL", "pg_isready -U banco -d banco"]
+    interval: 2s
+    timeout: 3s
+    retries: 30
+
+x-no: &no
+  build: ./backend
+  volumes:
+    # O mesmo ficheiro nos três nós e no balanceador: quem são os nós, onde
+    # estão, e os tempos do protocolo (heartbeat 150 ms, eleição 800–1500 ms).
+    - ./config/cluster.exemplo.json:/config/cluster.json:ro
+  healthcheck:
+    # É para isto que existe /saude. A imagem não tem curl, mas tem Python.
+    test: ["CMD", "python", "-c",
+           "import urllib.request; urllib.request.urlopen('http://localhost:8001/saude')"]
+    interval: 2s
+    timeout: 3s
+    retries: 15
+
+# A chave que assina os tokens tem de ser a mesma nos três nós, e não tem valor
+# por omissão de propósito: sem ela o compose recusa-se a arrancar, em vez de
+# arrancar com uma chave conhecida de toda a gente.
+x-ambiente-no: &ambiente-no
+  SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY, por exemplo SECRET_KEY=$(openssl rand -hex 32)}
+  PORTA: "8001"
+  CLUSTER_CONFIG: /config/cluster.json
+  PGPORT: "5432"
+  PGDATABASE: banco
+  PGUSER: banco
+  PGPASSWORD: banco
+
 services:
-  postgres:
-    image: postgres:16
+  postgres-a:
+    <<: *postgres
+    volumes:
+      - ./backend/db/esquema.sql:/docker-entrypoint-initdb.d/esquema.sql:ro
+      - dados-postgres-a:/var/lib/postgresql/data
+
+  postgres-b:
+    <<: *postgres
+    volumes:
+      - ./backend/db/esquema.sql:/docker-entrypoint-initdb.d/esquema.sql:ro
+      - dados-postgres-b:/var/lib/postgresql/data
+
+  postgres-c:
+    <<: *postgres
+    volumes:
+      - ./backend/db/esquema.sql:/docker-entrypoint-initdb.d/esquema.sql:ro
+      - dados-postgres-c:/var/lib/postgresql/data
+
+  no-a:
+    <<: *no
     environment:
-      POSTGRES_USER: banco
-      POSTGRES_PASSWORD: banco
-      POSTGRES_DB: banco_a
-    ports:
-      - "5432:5432"
+      <<: *ambiente-no
+      NO_ID: A
+      PGHOST: postgres-a
+    ports: ["8001:8001"]
+    depends_on:
+      postgres-a: {condition: service_healthy}
+
+  no-b:
+    <<: *no
+    environment:
+      <<: *ambiente-no
+      NO_ID: B
+      PGHOST: postgres-b
+    ports: ["8002:8001"]
+    depends_on:
+      postgres-b: {condition: service_healthy}
+
+  no-c:
+    <<: *no
+    environment:
+      <<: *ambiente-no
+      NO_ID: C
+      PGHOST: postgres-c
+    ports: ["8003:8001"]
+    depends_on:
+      postgres-c: {condition: service_healthy}
+
+  balanceador:
+    build: ./balanceador
+    volumes:
+      # Localmente os endereços são os nomes dos serviços, que são os do
+      # exemplo; o config/cluster.json só é preciso fora do compose.
+      - ./config/cluster.exemplo.json:/config/cluster.json:ro
+    ports: ["8000:8000"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U banco"]
+      # Sem isto, `docker compose up --wait` devolvia o controlo antes de o
+      # uvicorn do balanceador aceitar pedidos, e os primeiros falhavam com 502
+      # no painel (visto ao correr provas/scripts/operacoes_api.py).
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/saude')"]
       interval: 2s
       timeout: 3s
       retries: 15
+    depends_on:
+      no-a: {condition: service_healthy}
+      no-b: {condition: service_healthy}
+      no-c: {condition: service_healthy}
+
+  frontend:
+    build: ./frontend
+    ports: ["8080:80"]
+    depends_on:
+      # Pelo healthcheck, e não só pelo arranque: senão o painel responde 502
+      # nos primeiros segundos, que é quando alguém está a olhar para ele.
+      balanceador: {condition: service_healthy}
+
+volumes:
+  dados-postgres-a:
+  dados-postgres-b:
+  dados-postgres-c:
