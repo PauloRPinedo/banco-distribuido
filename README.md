@@ -58,8 +58,8 @@ uma etapa para a outra está em
 | Quero ver | Comando |
 |---|---|
 | A etapa 1 como foi entregue | `git show 7b430e6` |
-| A etapa 1 reaberta, com replicação e failover | `git show 3683a0f` |
-| A etapa 2 sobre a biblioteca padrão, com failover | `git show 0307715:prototipo-2/README.md` |
+| A etapa 1 reaberta, com replicação e failover | `git show eab7c4a` |
+| A etapa 2 sobre a biblioteca padrão, com failover | `git show d8e1754:prototipo-2/README.md` |
 
 Cada pasta é autocontida e tem o seu próprio README, com o que foi entregue e como
 o trabalho foi repartido entre os três.

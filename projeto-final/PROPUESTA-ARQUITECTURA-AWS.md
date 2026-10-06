@@ -262,7 +262,7 @@ Lo que **todavía no funciona** por esto (por ejemplo, que B no tiene los datos 
 ### 4.3 Lo que hay en `origin/main` y no en la copia local
 
 Según la referencia `origin/main` de esta copia (su último commit es del 15 de septiembre),
-hay 40 commits de Paulo que la copia local (`fd84ea4`) no tiene:
+hay 40 commits de Paulo que la copia local (`13fd95b`) no tiene:
 
 - **`prototipo-2/`, con el protocolo real.** Tres nodos con log replicado, confirmación por
   mayoría, elección con `epoch`, *failover* verificado con `kill -9`, reintegración,
@@ -273,7 +273,7 @@ hay 40 commits de Paulo que la copia local (`fd84ea4`) no tiene:
 - **El README de `prototipo-1/` ya describe esa versión, pero el código de esa carpeta sigue
   siendo el entregado** (WAL propio, sin frontend). Es lo que explica por qué el README y la
   carpeta parecen no coincidir; se resuelve con `git pull`.
-- **Se retiró la carpeta `docs/`** (commit `0307715`). Los enlaces `../docs/...` de este
+- **Se retiró la carpeta `docs/`** (commit `d8e1754`). Los enlaces `../docs/...` de este
   documento funcionan en la copia local actual.
 
 ---
@@ -475,7 +475,7 @@ cuota de AWS y de la fecha de entrega.
 - [ ] Lanzar `postgres-c` y `backend-c` en `us-east-2c` (pasos 1 a 3 de la guía), cuando
       llegue la cuota
 - [ ] Rotar las contraseñas de Postgres y la `SECRET_KEY` usadas en las primeras pruebas
-      (hubo secretos en archivos versionados; se limpiaron en `33670e5`, pero siguen en el
+      (hubo secretos en archivos versionados; se limpiaron en `18debfd`, pero siguen en el
       historial de git). Guardarlos en `/etc/banco/nodo-X.env`, que es lo que ya espera
       [`ci-cd.yml`](.github/workflows/ci-cd.yml), nunca en git
 - [ ] Red: `banco-backend` acepta `8001` solo desde el *security group* del balanceador y

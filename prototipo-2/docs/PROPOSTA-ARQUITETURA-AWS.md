@@ -13,8 +13,8 @@
 > descrevem o *stub* que havia antes; ficam como registo do ponto de partida.
 >
 > Os documentos de `docs/` que cita foram retirados do repositório no commit
-> `0307715`; leem-se com `git show 0307715^:docs/<caminho>`. O protocolo que o §4.3 e a
-> Fase 2 mandam portar é o da primeira versão desta pasta: `git show 0307715:prototipo-2/<caminho>`.
+> `d8e1754`; leem-se com `git show d8e1754^:docs/<caminho>`. O protocolo que o §4.3 e a
+> Fase 2 mandam portar é o da primeira versão desta pasta: `git show d8e1754:prototipo-2/<caminho>`.
 
 | Tens | Lê |
 |---|---|
@@ -273,19 +273,19 @@ O que **ainda não funciona** por isto (por exemplo, que B não tem os dados de 
 ### 4.3 O que havia em `origin/main` e não na cópia local (à data do rascunho)
 
 Segundo a referência `origin/main` da cópia de então (o último commit era de 15 de
-setembro), havia 40 commits do Paulo que a cópia local (`fd84ea4`) não tinha:
+setembro), havia 40 commits do Paulo que a cópia local (`13fd95b`) não tinha:
 
 - **`prototipo-2/`, com o protocolo real.** Três nós com log replicado, confirmação por
   maioria, eleição com `epoch`, *failover* verificado com `kill -9`, reintegração, injeção de
   falhas e um Postgres por nó. Reportava 305 testes. É a fonte natural do protocolo que falta
   aqui (§7, Fase 2). Essa versão foi entretanto substituída por esta pasta; lê-se com
-  `git show 0307715:prototipo-2/<caminho>`.
+  `git show d8e1754:prototipo-2/<caminho>`.
 - **`prototipo-1/` reconstruído** sobre FastAPI + PostgreSQL com painel React (111 testes),
   com um ou dois nós contra **uma** base partilhada.
 - **O README de `prototipo-1/` já descrevia essa versão, mas o código dessa pasta continuava
   a ser o entregue** (WAL próprio, sem frontend). É o que explicava porque o README e a pasta
   pareciam não coincidir; resolvia-se com `git pull`.
-- **Retirou-se a pasta `docs/`** (commit `0307715`).
+- **Retirou-se a pasta `docs/`** (commit `d8e1754`).
 
 ---
 
@@ -486,7 +486,7 @@ entrega.
 - [ ] Lançar `postgres-c` e `backend-c` em `us-east-2c` (passos 1 a 3 do guia), quando chegar
       a quota
 - [ ] Rodar as senhas do Postgres e a `SECRET_KEY` usadas nos primeiros testes (houve segredos
-      em ficheiros versionados; limparam-se em `33670e5`, mas continuam no histórico do git).
+      em ficheiros versionados; limparam-se em `18debfd`, mas continuam no histórico do git).
       Guardá-los em `/etc/banco/no-X.env`, que é o que o
       [`ci-cd.yml`](ci-cd.yml) já espera, nunca no git
 - [ ] Rede: `banco-backend` aceita a `8001` só a partir do *security group* do balanceador e
@@ -691,11 +691,11 @@ Desligando as instâncias fora das sessões de teste sobra orçamento. Regras pr
 | [`GUIA-REPLICA-POSTGRESQL.md`](GUIA-REPLICA-POSTGRESQL.md) | Porque a réplica é feita pela aplicação e não pelo Postgres |
 | [`INVENTARIO-INSTANCIAS.md`](INVENTARIO-INSTANCIAS.md) | A fotografia do que corre hoje na AWS |
 | [`diagramas/`](diagramas/) | As imagens dos diagramas do Lucid usadas neste documento |
-| `docs/SPECS.md` (retirado; `git show 0307715^:docs/SPECS.md`) | O protocolo: réplica, eleição, *fencing*, rotas internas |
-| `docs/ROADMAP.md` (retirado; `git show 0307715^:docs/ROADMAP.md`) | Subfases e responsáveis |
+| `docs/SPECS.md` (retirado; `git show d8e1754^:docs/SPECS.md`) | O protocolo: réplica, eleição, *fencing*, rotas internas |
+| `docs/ROADMAP.md` (retirado; `git show d8e1754^:docs/ROADMAP.md`) | Subfases e responsáveis |
 | ADR-0001 e ADR-0002 | Decisões de persistência, réplica e implantação |
 | [`prototipo-1/README.md`](../../prototipo-1/README.md) | O Protótipo 1 |
-| `git show 0307715:prototipo-2/README.md`, `REDE.md`, `UML.md` | O protocolo já implementado no Protótipo 2 anterior e como o correr em três máquinas |
+| `git show d8e1754:prototipo-2/README.md`, `REDE.md`, `UML.md` | O protocolo já implementado no Protótipo 2 anterior e como o correr em três máquinas |
 
 ---
 
