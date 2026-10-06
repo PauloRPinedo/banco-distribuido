@@ -1,0 +1,11 @@
+# python -m unittest discover -s tests -v
+teste_encontra_o_primario (teste_encaminhador.TesteEncaminhador.teste_encontra_o_primario) ... ok
+teste_leituras_e_escritas_vao_ao_primario (teste_encaminhador.TesteEncaminhador.teste_leituras_e_escritas_vao_ao_primario) ... ok
+teste_se_o_primario_morre_redescobre_e_repete (teste_encaminhador.TesteEncaminhador.teste_se_o_primario_morre_redescobre_e_repete) ... ok
+teste_segue_o_primario_provavel_de_um_409 (teste_encaminhador.TesteEncaminhador.teste_segue_o_primario_provavel_de_um_409) ... ok
+teste_sem_primario_diz_que_nao_ha (teste_encaminhador.TesteEncaminhador.teste_sem_primario_diz_que_nao_ha) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.043s
+
+OK

@@ -1,0 +1,14 @@
+# npm ci && npm run build   (v20.19.2)
+
+> banco-prototipo-2-frontend@0.2.0 build
+> vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 37 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.01 kB │ gzip:  0.56 kB
+dist/assets/index-ASBz-Wgq.css   11.20 kB │ gzip:  3.00 kB
+dist/assets/index-DAe7JqA6.js   165.75 kB │ gzip: 52.31 kB
+✓ built in 2.13s

@@ -1,0 +1,145 @@
+# SECRET_KEY=<aleatória> docker compose up --build -d --wait
+# 2026-10-05T13:26:15-03:00, Docker 29.8.2, Compose 5.6.0
+ Image prototipo-2-balanceador Building 
+ Image prototipo-2-no-c Building 
+ Image prototipo-2-no-a Building 
+ Image prototipo-2-no-b Building 
+ Image prototipo-2-frontend Building 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Image prototipo-2-no-c Built 
+ Image prototipo-2-no-a Built 
+ Image prototipo-2-balanceador Built 
+ Image prototipo-2-frontend Built 
+ Image prototipo-2-no-b Built 
+ Volume prototipo-2_dados-postgres-b Creating 
+ Volume prototipo-2_dados-postgres-c Creating 
+ Volume prototipo-2_dados-postgres-b Creating 
+ Volume prototipo-2_dados-postgres-c Creating 
+ Network prototipo-2_default Creating 
+ Volume prototipo-2_dados-postgres-a Creating 
+ Network prototipo-2_default Creating 
+ Volume prototipo-2_dados-postgres-a Creating 
+ Volume prototipo-2_dados-postgres-b Created 
+ Volume prototipo-2_dados-postgres-b Created 
+ Volume prototipo-2_dados-postgres-a Created 
+ Volume prototipo-2_dados-postgres-a Created 
+ Volume prototipo-2_dados-postgres-c Created 
+ Volume prototipo-2_dados-postgres-c Created 
+ Network prototipo-2_default Created 
+ Network prototipo-2_default Created 
+ Container prototipo-2-postgres-a-1 Creating 
+ Container prototipo-2-postgres-b-1 Creating 
+ Container prototipo-2-postgres-c-1 Creating 
+ Container prototipo-2-postgres-a-1 Created 
+ Container prototipo-2-postgres-b-1 Created 
+ Container prototipo-2-no-a-1 Creating 
+ Container prototipo-2-no-b-1 Creating 
+ Container prototipo-2-postgres-c-1 Created 
+ Container prototipo-2-no-c-1 Creating 
+ Container prototipo-2-no-b-1 Created 
+ Container prototipo-2-no-a-1 Created 
+ Container prototipo-2-no-c-1 Created 
+ Container prototipo-2-balanceador-1 Creating 
+ Container prototipo-2-balanceador-1 Created 
+ Container prototipo-2-frontend-1 Creating 
+ Container prototipo-2-frontend-1 Created 
+ Container prototipo-2-postgres-b-1 Starting 
+ Container prototipo-2-postgres-c-1 Starting 
+ Container prototipo-2-postgres-a-1 Starting 
+ Container prototipo-2-postgres-b-1 Started 
+ Container prototipo-2-postgres-b-1 Waiting 
+ Container prototipo-2-postgres-c-1 Started 
+ Container prototipo-2-postgres-c-1 Waiting 
+ Container prototipo-2-postgres-a-1 Started 
+ Container prototipo-2-postgres-a-1 Waiting 
+ Container prototipo-2-postgres-c-1 Healthy 
+ Container prototipo-2-no-c-1 Starting 
+ Container prototipo-2-postgres-a-1 Healthy 
+ Container prototipo-2-no-a-1 Starting 
+ Container prototipo-2-no-c-1 Started 
+ Container prototipo-2-no-a-1 Started 
+ Container prototipo-2-postgres-b-1 Healthy 
+ Container prototipo-2-no-b-1 Starting 
+ Container prototipo-2-no-b-1 Started 
+ Container prototipo-2-no-c-1 Waiting 
+ Container prototipo-2-no-a-1 Waiting 
+ Container prototipo-2-no-b-1 Waiting 
+ Container prototipo-2-no-c-1 Healthy 
+ Container prototipo-2-no-a-1 Healthy 
+ Container prototipo-2-no-b-1 Healthy 
+ Container prototipo-2-balanceador-1 Starting 
+ Container prototipo-2-balanceador-1 Started 
+ Container prototipo-2-balanceador-1 Waiting 
+ Container prototipo-2-balanceador-1 Healthy 
+ Container prototipo-2-frontend-1 Starting 
+ Container prototipo-2-frontend-1 Started 
+ Container prototipo-2-no-b-1 Waiting 
+ Container prototipo-2-no-c-1 Waiting 
+ Container prototipo-2-frontend-1 Waiting 
+ Container prototipo-2-postgres-c-1 Waiting 
+ Container prototipo-2-postgres-a-1 Waiting 
+ Container prototipo-2-balanceador-1 Waiting 
+ Container prototipo-2-postgres-b-1 Waiting 
+ Container prototipo-2-no-a-1 Waiting 
+ Container prototipo-2-no-c-1 Healthy 
+ Container prototipo-2-postgres-b-1 Healthy 
+ Container prototipo-2-no-b-1 Healthy 
+ Container prototipo-2-balanceador-1 Healthy 
+ Container prototipo-2-postgres-c-1 Healthy 
+ Container prototipo-2-postgres-a-1 Healthy 
+ Container prototipo-2-frontend-1 Healthy 
+ Container prototipo-2-no-a-1 Healthy 
+
+SERVICE       STATUS                    PORTS
+balanceador   Up 3 seconds (healthy)    0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+frontend      Up Less than a second     0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
+no-a          Up 8 seconds (healthy)    0.0.0.0:8001->8001/tcp, [::]:8001->8001/tcp
+no-b          Up 6 seconds (healthy)    0.0.0.0:8002->8001/tcp, [::]:8002->8001/tcp
+no-c          Up 8 seconds (healthy)    0.0.0.0:8003->8001/tcp, [::]:8003->8001/tcp
+postgres-a    Up 10 seconds (healthy)   5432/tcp
+postgres-b    Up 11 seconds (healthy)   5432/tcp
+postgres-c    Up 11 seconds (healthy)   5432/tcp
+
+# estado de cada nó, 3 s depois do arranque
+{"no":"A","papel":"réplica","epoch":2,"lider":"C","ultimo_indice":1,"indice_commit":1,"ultimo_aplicado":1,"falhas":{"atraso_ms":0,"isolado_de":[]}}
+{"no":"B","papel":"réplica","epoch":2,"lider":"C","ultimo_indice":1,"indice_commit":1,"ultimo_aplicado":1,"falhas":{"atraso_ms":0,"isolado_de":[]}}
+{"no":"C","papel":"primário","epoch":2,"lider":"C","ultimo_indice":1,"indice_commit":1,"ultimo_aplicado":1,"falhas":{"atraso_ms":0,"isolado_de":[]}}

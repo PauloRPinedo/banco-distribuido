@@ -1,13 +1,8 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "cleanUrls": true,
-  "headers": [
+  "rewrites": [
     {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "no-referrer" }
-      ]
+      "source": "/api/:path*",
+      "destination": "https://usrzoacnuosa6bhetxt5qa4mwe0ldjrk.lambda-url.us-east-2.on.aws/:path*"
     }
   ]
 }
