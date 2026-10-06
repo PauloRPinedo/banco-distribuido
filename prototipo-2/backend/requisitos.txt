@@ -1,0 +1,15 @@
+# As dependências de um nó. Instalam-se com:
+#
+#     pip install -r requisitos.txt
+#
+# Os testes de tests/unitarios/ sobre o domínio não precisam de nenhuma; os de
+# autenticação e segurança precisam do fastapi. Os de tests/integracao/
+# saltam-se sozinhos, com o motivo escrito, sem a pilha ou sem BANCO_BD_TESTE.
+#
+# psycopg2-binary 2.9.10, e não o 2.9.9: o 2.9.9 não publica
+# wheel para o Python 3.13 e tenta compilar a partir do código-fonte.
+
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+psycopg2-binary==2.9.10
+pydantic==2.9.2

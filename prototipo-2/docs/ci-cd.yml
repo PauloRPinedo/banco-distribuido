@@ -1,0 +1,131 @@
+# Atenção: o GitHub só corre workflows em .github/workflows/ na raiz do
+# repositório. Este ficheiro fica em docs/ como referência; para o ativar,
+# copia-se para lá — decisão do grupo, ainda não tomada.
+name: CI/CD — Protótipo 2
+
+on:
+  push:
+    branches: [main]
+    paths: ["prototipo-2/**"]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGEM_BASE: ghcr.io/${{ github.repository }}/prototipo-2
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar dependências
+        run: |
+          pip install -r prototipo-2/backend/requisitos.txt
+      - name: Testes do backend (os de integração saltam-se sem BANCO_BD_TESTE)
+        run: |
+          cd prototipo-2/backend
+          python -m unittest discover -s tests -v
+      - name: Testes do balanceador
+        run: |
+          pip install -r prototipo-2/balanceador/requisitos.txt
+          cd prototipo-2/balanceador
+          python -m unittest discover -s tests -v
+
+  construir-e-publicar:
+    needs: testes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build e push — backend (instâncias dos nós)
+        uses: docker/build-push-action@v6
+        with:
+          context: prototipo-2/backend
+          push: true
+          tags: ${{ env.IMAGEM_BASE }}/backend:${{ github.sha }},${{ env.IMAGEM_BASE }}/backend:latest
+      - name: Credenciais da AWS (para publicar no ECR)
+        if: ${{ vars.AWS_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Build e push — balanceador (imagem para o Lambda, vai para o ECR)
+        # O Lambda com imagem de contentor exige que a imagem esteja no Amazon
+        # ECR — não aceita ghcr.io nem Docker Hub diretamente. Por isso este
+        # build vai para um registry diferente do do backend/frontend.
+        if: ${{ vars.AWS_ROLE_ARN != '' }}
+        run: |
+          aws ecr get-login-password --region ${{ vars.AWS_REGION }} | \
+            docker login --username AWS --password-stdin ${{ vars.ECR_REGISTRY }}
+          docker build -f prototipo-2/balanceador/Dockerfile.lambda \
+            -t ${{ vars.ECR_REGISTRY }}/balanceador-lambda:${{ github.sha }} \
+            prototipo-2/balanceador
+          docker push ${{ vars.ECR_REGISTRY }}/balanceador-lambda:${{ github.sha }}
+      # O frontend não se constrói aqui: o Vercel compila-o e implanta-o
+      # sozinho a cada push (ligando o repositório no seu painel), sem passar
+      # por este pipeline — ver GUIA-IMPLANTACAO.md.
+
+  implantar:
+    needs: construir-e-publicar
+    runs-on: ubuntu-latest
+    # Nós: exige SSH_HOST_A/B/C, SSH_USER, SSH_KEY.
+    # Balanceador: exige credenciais da AWS (OIDC recomendado, ou
+    # AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY) e o nome da função Lambda.
+    # Ver GUIA-IMPLANTACAO.md, secção CI/CD, para como gerá-los. Enquanto
+    # não existirem, este job pode desativar-se comentando o `needs` acima
+    # ou retirando-o por inteiro — o pipeline continua a servir para testes
+    # + build sem ele.
+    steps:
+      - uses: actions/checkout@v4
+      - name: Implantar o nó A por SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST_A }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            docker pull ${{ env.IMAGEM_BASE }}/backend:latest
+            docker stop no-a || true && docker rm no-a || true
+            docker run -d --name no-a -p 8001:8001 --env-file /etc/banco/no-a.env \
+              ${{ env.IMAGEM_BASE }}/backend:latest
+      - name: Implantar o nó B por SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST_B }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            docker pull ${{ env.IMAGEM_BASE }}/backend:latest
+            docker stop no-b || true && docker rm no-b || true
+            docker run -d --name no-b -p 8001:8001 --env-file /etc/banco/no-b.env \
+              ${{ env.IMAGEM_BASE }}/backend:latest
+      - name: Implantar o nó C por SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST_C }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            docker pull ${{ env.IMAGEM_BASE }}/backend:latest
+            docker stop no-c || true && docker rm no-c || true
+            docker run -d --name no-c -p 8001:8001 --env-file /etc/banco/no-c.env \
+              ${{ env.IMAGEM_BASE }}/backend:latest
+      - name: Credenciais da AWS (para atualizar o Lambda)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Atualizar a função Lambda do balanceador
+        run: |
+          aws lambda update-function-code \
+            --function-name banco-balanceador \
+            --image-uri ${{ vars.ECR_REGISTRY }}/balanceador-lambda:${{ github.sha }}
