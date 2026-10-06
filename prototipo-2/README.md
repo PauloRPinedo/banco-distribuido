@@ -199,6 +199,445 @@ imediato, sem fechar nada) e `limpar`.
 
 ---
 
+## Estrutura e funcionamento, em diagramas
+
+Os diagramas estão em [Mermaid](https://mermaid.js.org/): o GitHub desenha-os, e
+como são texto mudam no mesmo commit que o código que descrevem.
+
+### 1. As peças e por onde passa um pedido
+
+```mermaid
+flowchart LR
+    U(["Navegador"]) -->|":8080"| P["Painel<br/>React + nginx"]
+    CLI(["curl / outro cliente"]) -->|":8000"| BAL
+    P -->|"/api/* → :8000"| BAL["Balanceador<br/>encontra o primário"]
+
+    BAL ==>|"todos os pedidos"| A
+    BAL -.->|"GET /interno/estado"| B
+    BAL -.->|"GET /interno/estado"| C
+
+    subgraph cluster["Cluster: 3 nós, maioria = 2"]
+        direction TB
+        A["Nó A · primário<br/>FastAPI :8001"]
+        B["Nó B · réplica<br/>FastAPI :8002"]
+        C["Nó C · réplica<br/>FastAPI :8003"]
+        A <-->|"/interno/replicar<br/>/interno/votar"| B
+        A <-->|"/interno/replicar<br/>/interno/votar"| C
+        B <-.->|"/interno/votar"| C
+    end
+
+    A --- PA[("PostgreSQL A")]
+    B --- PB[("PostgreSQL B")]
+    C --- PC[("PostgreSQL C")]
+```
+
+O cliente nunca escolhe um nó: fala com o balanceador, que pergunta aos três
+quem é o primário e lhe manda tudo. Cada nó só fala com a **sua** base; as bases
+não se conhecem. O que as mantém iguais é o protocolo entre os nós. O papel de
+primário é de quem ganhar a eleição — aqui A, mas pode ser qualquer um.
+
+### 2. As camadas de um nó
+
+```mermaid
+flowchart TB
+    API["api/<br/>rotas FastAPI, tradução de erros, sessão"]
+    SERV["servico/<br/>ServicoDeEscrita · ServicoDeConsultas · ServicoAutenticacao"]
+    APL["servico/aplicador.py<br/>AplicadorPostgres"]
+    CLU["cluster/<br/>No · Eleicao · LogDeReplicacao · Replicador<br/>ArmazemPostgres · InjetorDeFalhas"]
+    REPO["repositorio/<br/>SQL das contas, operações, utilizadores, taxas"]
+    DOM["dominio/<br/>Conta · Livro · Operacao e subclasses<br/>sem rede, sem disco, sem relógio"]
+    BD[("PostgreSQL do nó")]
+    OUT["outros nós"]
+
+    API --> SERV
+    SERV -->|"No.executar(op_id, operação)"| CLU
+    CLU -->|"entrada confirmada"| APL
+    SERV --> REPO
+    APL --> REPO
+    CLU -->|"log_replicado, estado_do_no"| BD
+    REPO --> BD
+    CLU <-->|"HTTP /interno/*"| OUT
+    SERV -.->|"validar"| DOM
+    APL -.->|"aplicar"| DOM
+```
+
+As setas apontam para dentro, e o domínio não aponta para lado nenhum. A escrita
+entra pelo serviço, passa pelo `No` (que a replica) e só chega às tabelas pelo
+`AplicadorPostgres` — que é o mesmo código no primário e nas réplicas.
+
+### 3. O caminho de uma escrita
+
+Uma transferência, do pedido à resposta. É `No.executar()` em
+`cluster/no.py`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cli as Cliente
+    participant Bal as Balanceador
+    participant A as Nó A (primário)
+    participant B as Nó B (réplica)
+    participant C as Nó C (réplica)
+
+    Cli->>Bal: POST /transferencias {de, para, valor, op_id}
+    Bal->>A: reenvia ao primário em cache
+    Note over A: lock de escrita: uma escrita de cada vez
+    A->>A: sou primário e vejo a maioria?
+    alt este op_id já foi aplicado
+        A-->>Bal: a resposta guardada (o dinheiro não se move)
+    else op_id novo
+        A->>A: validar contra as tabelas (dono, saldo, moeda, prazo)
+        A->>A: gravar a entrada no log_replicado (índice n, epoch e)
+        par replicação
+            A->>B: POST /interno/replicar [entrada n]
+            B->>B: grava no seu log
+            B-->>A: ok
+        and
+            A->>C: POST /interno/replicar [entrada n]
+            C-->>A: ok (ou não responde)
+        end
+        Note over A: 2 de 3 têm a entrada: confirmada
+        A->>A: indice_commit = n
+        A->>A: AplicadorPostgres.aplicar(n): contas + operação + ultimo_aplicado, numa transação
+        A-->>Bal: 200 com a resposta, guardada para repetições
+    end
+    Bal-->>Cli: 200
+    A->>B: heartbeat seguinte (commit = n)
+    B->>B: aplica a entrada n às suas tabelas
+    A->>C: heartbeat seguinte (commit = n)
+    C->>C: aplica a entrada n às suas tabelas
+```
+
+Se o primário já não o for, responde `409 nao_sou_primario` com o endereço do
+provável primário; se a ligação falhar, o balanceador volta a perguntar quem é o
+primário. Nos dois casos repete **uma vez**, com o mesmo `op_id` — e é por isso
+que repetir é seguro. Se a maioria não responder dentro do prazo de replicação,
+a resposta é `503 sem_quorum` e a entrada fica por confirmar até a maioria
+voltar.
+
+### 4. Os papéis de um nó
+
+```mermaid
+stateDiagram-v2
+    [*] --> Replica: arranca sempre como réplica
+    Replica --> Candidato: sem heartbeat durante 800–1500 ms (sorteado)<br/>epoch + 1, vota em si, pede votos
+    Candidato --> Candidato: ninguém ganhou e o tempo voltou a esgotar<br/>epoch + 1, outra vez
+    Candidato --> Primario: votos da maioria (2 de 3)<br/>grava uma entrada noop do seu epoch
+    Candidato --> Replica: recebe heartbeat de um primário<br/>ou vê um epoch maior
+    Primario --> Replica: vê um epoch maior (fencing)
+    Replica --> Replica: heartbeat do primário: segue-o e aplica o confirmado
+
+    Replica: Réplica
+    Primario: Primário
+```
+
+Um nó só vota uma vez por `epoch`, e só num candidato com o log pelo menos tão
+atualizado como o seu. Por isso o vencedor tem sempre tudo o que foi confirmado.
+
+### 5. O failover
+
+O primário C morre a meio do trabalho. Os tempos são os de
+`config/cluster.exemplo.json`.
+
+```mermaid
+sequenceDiagram
+    actor Cli as Cliente
+    participant Bal as Balanceador
+    participant A as Nó A
+    participant B as Nó B
+    participant C as Nó C (primário, epoch 2)
+
+    C-xC: docker compose kill
+    Cli->>Bal: POST /transferencias (op_id X)
+    Bal-xC: a ligação falha
+    Bal->>Bal: redescobre: ainda ninguém é primário
+    Bal-->>Cli: 503 sem_primario: repete com o mesmo op_id
+    Note over A,B: nenhum heartbeat de C
+    A->>A: timeout (ex.: 900 ms): candidato, epoch 3
+    A->>B: POST /interno/votar (epoch 3, o meu último índice)
+    B-->>A: voto concedido (o log de A está tão em dia como o meu)
+    Note over A: 2 votos de 3: primário do epoch 3
+    A->>B: noop do epoch 3, replicada e confirmada
+    Cli->>Bal: repete POST /transferencias (op_id X)
+    Bal->>A: redescobre o primário: A
+    alt X tinha chegado a ser confirmado por C
+        A-->>Cli: a resposta guardada
+    else X nunca foi confirmado
+        A-->>Cli: aplica agora, uma vez só
+    end
+    C->>C: docker compose start: volta como réplica, epoch 2
+    A->>C: heartbeat (epoch 3)
+    C->>C: vê o epoch 3 e segue A
+    C-->>A: o meu log diverge ou está atrás
+    A->>C: as entradas em falta, a partir do que C tem confirmado
+    Note over A,C: as três bases voltam a ser iguais
+```
+
+Na prova guardada em [`provas/`](provas/README.md) este intervalo — da morte do
+primário à eleição do novo — durou 1,23 s.
+
+### 6. O banco, em UML
+
+O cliente do banco é o `Usuario`: não há uma entidade "pessoa" à parte. As
+classes são as do domínio (`banco/dominio/`), mais as três que vivem à volta
+dele: o utilizador, a taxa de câmbio e o outro banco.
+
+```mermaid
+classDiagram
+    direction LR
+
+    class Usuario {
+        +UUID id
+        +str nome
+        +str email «único»
+        +str hash_senha
+        +float criado_em
+    }
+
+    class Conta {
+        +str id «escolhido pelo cliente»
+        +int saldo_centavos «≥ 0»
+        +float criada_em
+        +Moeda moeda
+        +Produto produto
+        +int taxa_juros_milionesimos «poupança e prazo fixo»
+        +float ultimo_juros_em
+        +float vence_em «só prazo fixo»
+    }
+
+    class Moeda {
+        <<enumeration>>
+        BRL
+        USD
+        PEN
+    }
+
+    class Produto {
+        <<enumeration>>
+        corrente
+        poupanca
+        prazo_fixo
+    }
+
+    class Movimento {
+        +int indice
+        +str tipo
+        +int valor_centavos
+        +str contraparte
+        +int saldo_depois_centavos
+        +float instante
+    }
+
+    class Livro {
+        +existe(id) bool
+        +obter(id) Conta
+        +criar(...)
+        +extrato(id) list~Movimento~
+        +total_centavos() int
+    }
+
+    class Operacao {
+        <<abstract>>
+        +str tipo
+        +contas_tocadas() tuple
+        +validar(livro, instante)
+        +aplicar(livro, indice, instante) dict
+    }
+
+    class CriarConta {
+        +str conta
+        +int saldo_inicial_centavos
+        +str dono
+        +Moeda moeda
+        +Produto produto
+        +int taxa_juros_milionesimos
+        +int prazo_dias
+    }
+    class Deposito {
+        +str conta
+        +int valor_centavos
+    }
+    class Saque {
+        +str conta
+        +int valor_centavos
+    }
+    class Transferencia {
+        +str de
+        +str para
+        +int valor_centavos
+    }
+    class Cambio {
+        +str de
+        +str para
+        +int valor_centavos
+        +int taxa_milionesimos
+    }
+    class Juros {
+        +str conta
+        +float ate
+    }
+    class TransferenciaExterna {
+        +str de
+        +str sistema_externo_id
+        +int valor_centavos
+    }
+    class DesfechoExterno {
+        +str conta
+        +int valor_centavos
+        +bool confirmada
+        +str referencia_externa
+        +str op_original
+    }
+
+    class TaxaCambio {
+        +Moeda moeda_origem
+        +Moeda moeda_destino
+        +int taxa_milionesimos
+        +float vigente_desde
+    }
+
+    class SistemaExterno {
+        +str id
+        +str nome
+        +str codigo «único»
+        +bool ativo
+    }
+
+    class EntradaDeLog {
+        +int indice
+        +int epoch
+        +str op_id «único»
+        +str tipo
+        +dict dados
+        +float instante
+    }
+
+    Usuario "1" --> "0..*" Conta : é dono de
+    Conta --> Moeda
+    Conta --> Produto
+    Livro "1" o-- "0..*" Conta : contas
+    Conta "1" *-- "0..*" Movimento : extrato
+
+    Operacao <|-- CriarConta
+    Operacao <|-- Deposito
+    Operacao <|-- Saque
+    Operacao <|-- Transferencia
+    Operacao <|-- Cambio
+    Operacao <|-- Juros
+    Operacao <|-- TransferenciaExterna
+    Operacao <|-- DesfechoExterno
+
+    Operacao "0..*" --> "1..2" Conta : toca
+    Cambio "0..*" --> "1" TaxaCambio : à taxa em vigor
+    TransferenciaExterna "0..*" --> "1" SistemaExterno : para
+    DesfechoExterno "0..1" --> "1" TransferenciaExterna : resolve
+    EntradaDeLog "1" --> "1" Operacao : leva
+```
+
+Como ler as cardinalidades:
+
+- Um utilizador tem **zero ou mais** contas; cada conta tem **exatamente um**
+  dono, que vem do token e não do corpo do pedido.
+- Uma operação toca **uma ou duas** contas: duas na transferência e no câmbio
+  (origem e destino), uma em todas as outras. Uma conta é tocada por **zero ou
+  mais** operações, e cada uma deixa um `Movimento` no seu extrato.
+- O câmbio leva dentro de si a taxa que estava **em vigor** quando foi feito, e
+  por isso repeti-lo depois de a taxa mudar dá o mesmo resultado.
+- Uma transferência externa tem **no máximo um** desfecho: confirmada, ou
+  devolvida à conta de origem.
+- Cada entrada do log leva **uma** operação. As operações de dinheiro são estas
+  oito; o log leva também três que não movem dinheiro (`RegistarUsuario`,
+  `RegistarTaxa` e `Noop`, em `cluster/operacoes_de_sistema.py`).
+
+### 7. As tabelas de cada nó
+
+Cada nó tem uma cópia destas sete tabelas na sua própria base
+([`backend/db/esquema.sql`](backend/db/esquema.sql)).
+
+```mermaid
+erDiagram
+    USUARIO ||--o{ CONTA : "é dono de"
+    CONTA |o--o{ OPERACAO : "origem"
+    CONTA |o--o{ OPERACAO : "destino"
+    SISTEMA_EXTERNO |o--o{ OPERACAO : "transferência externa"
+    LOG_REPLICADO ||--o| OPERACAO : "op_id; numero = indice"
+
+    USUARIO {
+        UUID id PK
+        VARCHAR nome
+        VARCHAR email UK
+        VARCHAR hash_senha
+        FLOAT8 criado_em
+    }
+    CONTA {
+        VARCHAR id PK
+        UUID usuario_id FK
+        BIGINT saldo_centavos "CHECK >= 0"
+        FLOAT8 criada_em
+        VARCHAR moeda "BRL, USD, PEN"
+        VARCHAR produto "corrente, poupanca, prazo_fixo"
+        INTEGER taxa_juros_milionesimos
+        FLOAT8 ultimo_juros_em
+        FLOAT8 vence_em
+    }
+    OPERACAO {
+        VARCHAR op_id PK
+        BIGINT numero UK "índice do log"
+        VARCHAR tipo "8 tipos"
+        VARCHAR conta_origem_id FK
+        VARCHAR conta_destino_id FK
+        BIGINT valor_centavos
+        VARCHAR moeda_origem
+        VARCHAR moeda_destino
+        BIGINT taxa_milionesimos
+        BIGINT valor_destino_centavos
+        VARCHAR sistema_externo_id FK
+        VARCHAR referencia_externa
+        JSONB resposta "o corpo devolvido ao cliente"
+        FLOAT8 instante
+    }
+    TAXA_CAMBIO {
+        VARCHAR moeda_origem PK
+        VARCHAR moeda_destino PK
+        FLOAT8 vigente_desde PK
+        BIGINT taxa_milionesimos
+    }
+    SISTEMA_EXTERNO {
+        VARCHAR id PK
+        VARCHAR nome
+        VARCHAR codigo UK
+        BOOLEAN ativo
+    }
+    LOG_REPLICADO {
+        BIGINT indice PK
+        BIGINT epoch
+        VARCHAR op_id UK
+        VARCHAR tipo
+        JSONB dados
+        FLOAT8 instante
+    }
+    ESTADO_DO_NO {
+        VARCHAR no_id PK
+        BIGINT epoch
+        VARCHAR votou_em
+        BIGINT indice_commit
+        BIGINT ultimo_aplicado
+    }
+```
+
+- `log_replicado` é a fonte da verdade; `conta`, `operacao`, `usuario` e
+  `taxa_cambio` são o log confirmado já aplicado. A ligação entre os dois é o
+  `op_id` (o mesmo nas duas tabelas) e `operacao.numero`, que é o índice da
+  entrada no log — igual nos três nós.
+- Nem toda a entrada do log gera uma linha em `operacao`: registar um
+  utilizador, registar uma taxa e a `noop` mudam outras tabelas ou nenhuma.
+- `estado_do_no` tem uma linha só: o `epoch` deste nó, em quem votou, até onde o
+  log está confirmado e até onde já foi aplicado às tabelas.
+- `taxa_cambio` não tem chave estrangeira: o câmbio lê a taxa em vigor e
+  copia-a para a sua própria linha de `operacao`.
+
+---
+
 ## Como funciona
 
 **Uma regra:** o estado de um nó — as tabelas `conta`, `operacao`, `usuario`,
@@ -206,18 +645,8 @@ imediato, sem fechar nada) e `limpar`.
 **confirmadas** do log replicado. O primário e as réplicas aplicam com a mesma
 função, por isso três nós com o mesmo log confirmado têm as mesmas tabelas.
 
-```
-cliente → balanceador → primário
-                         0. sou primário e vejo a maioria?   senão 409 / 503
-                         1. este op_id já foi aplicado?       devolve o guardado
-                         2. validar contra as tabelas (dono, saldo, moeda, prazo)
-                         3. gravar a entrada no log, em disco (log_replicado)
-                         4. POST /interno/replicar às réplicas  ──→  réplica: grava no seu log
-                            maioria (2 de 3) respondeu ok?        ←──  ok
-                         5. confirmar (indice_commit) e aplicar às tabelas
-                         6. responder
-                       heartbeat seguinte leva o commit  ──→  réplica: aplica às suas tabelas
-```
+O caminho completo está no [diagrama 3](#3-o-caminho-de-uma-escrita); a
+eleição e o failover nos diagramas [4](#4-os-papéis-de-um-nó) e [5](#5-o-failover).
 
 - **Eleição.** Cada nó arranca como réplica. Sem heartbeat do primário durante um
   tempo sorteado entre 800 e 1500 ms, candidata-se com `epoch + 1` e pede votos.
