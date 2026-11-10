@@ -20,7 +20,9 @@ instalar nada** além do Python, incluindo o protocolo inteiro com três nós em
 memória.
 
 O que mudou desde o Protótipo 1, ponto por ponto, está em
-[`MUDANCAS-DESDE-PROTOTIPO-1.md`](MUDANCAS-DESDE-PROTOTIPO-1.md).
+[`MUDANCAS-DESDE-PROTOTIPO-1.md`](MUDANCAS-DESDE-PROTOTIPO-1.md). O relatório
+da etapa — objetivos, protocolo, resultados e limitações — está em
+[`RELATORIO.md`](RELATORIO.md).
 
 ---
 
