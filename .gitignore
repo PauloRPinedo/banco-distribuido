@@ -26,3 +26,4 @@ node_modules/
 
 # credenciais da base partilhada, por portátil
 */.env
+.env
