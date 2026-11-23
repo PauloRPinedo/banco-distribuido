@@ -2,8 +2,8 @@
 
 O `Livro` é a única estrutura que guarda saldos. É puro: não sabe de onde vêm as
 operações nem para onde vão. Reconstruí-lo pela mesma sequência de operações dá
-sempre o mesmo resultado, e é essa propriedade que a etapa 2 vai usar para
-replicar por log.
+sempre o mesmo resultado, e é essa propriedade que a replicação por log
+vai usar.
 """
 
 import re
@@ -35,6 +35,19 @@ class Conta:
     id: str
     saldo_centavos: int
     criada_em: float
+    # O `usuario_id` de quem abriu a conta. Faz parte do estado, e não só da
+    # base, porque a operação de criação é replicada: um nó que a reaplique a
+    # partir do log tem de chegar ao mesmo dono sem perguntar a ninguém.
+    dono: str | None = None
+    # RF-19 e RF-23/24. A moeda e o produto não mudam depois de a conta abrir.
+    moeda: str = "BRL"
+    produto: str = "corrente"            # corrente, poupanca ou prazo_fixo
+    taxa_juros_milionesimos: int | None = None   # ao ano
+    ultimo_juros_em: float | None = None
+    vence_em: float | None = None
+    # O número visível (`dominio/numero_conta.py`), escolhido pelo primário e
+    # replicado na entrada. None só nas contas abertas antes de haver números.
+    numero: str | None = None
 
 
 @dataclass(frozen=True)
@@ -68,10 +81,11 @@ class Livro:
             raise ContaInexistente(f"a conta {identificador!r} não existe")
         return conta
 
-    def criar(self, identificador: str, saldo_centavos: int, instante: float) -> Conta:
+    def criar(self, identificador: str, saldo_centavos: int, instante: float,
+              dono: str | None = None, **produto) -> Conta:
         if identificador in self.contas:
             raise ContaDuplicada(f"a conta {identificador!r} já existe")
-        conta = Conta(identificador, saldo_centavos, instante)
+        conta = Conta(identificador, saldo_centavos, instante, dono, **produto)
         self.contas[identificador] = conta
         self.extratos[identificador] = []
         return conta

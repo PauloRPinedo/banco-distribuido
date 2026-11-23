@@ -324,7 +324,7 @@ isolado. O que lá estava antes — PostgreSQL como log replicado, eleição,
 failover, injeção de falhas e um painel de cluster — era trabalho das etapas 2 e
 3 a viver na pasta da etapa 1.
 
-| Antes (`git show eab7c4a`) | Agora |
+| Antes (`git show be54f62`) | Agora |
 |---|---|
 | `http.server` da biblioteca padrão | FastAPI e uvicorn |
 | WAL em JSONL, com PostgreSQL como armazém do log | PostgreSQL como estado, em duas tabelas |

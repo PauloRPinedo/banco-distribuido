@@ -1,55 +1,68 @@
-"""Expone las mismas rutas públicas que un nodo — el cliente/frontend le
-habla solo a esto, nunca directo a un nodo (ver diagrama-de-despliegue.md).
+"""Expõe as mesmas rotas públicas que um nó — o cliente/frontend fala só com
+isto, nunca diretamente com um nó.
 
-Regla de enrutamiento: GET es lectura (cualquier nodo), todo lo demás
-(POST/PUT/DELETE) es escritura (al primario) — coincide con cómo está
-diseñada la API en banco/api/ (ninguna escritura usa GET).
+Regra de encaminhamento: tudo vai ao primário — as escritas porque só ele as
+aceita, as leituras porque só ele está garantidamente em dia. Sem primário, as
+leituras vão a uma réplica e a resposta diz-o (`X-Leitura-De-Replica`). As rotas
+`/interno/*` também passam, para o painel poder mostrar o cluster.
 """
 
 import logging
 
 from fastapi import FastAPI, Request, Response
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import JSONResponse
 
-from balanceador.config import cargar_nodos, url_base
-from balanceador.enrutador import Enrutador
+from balanceador.config import carregar_nos, url_base
+from balanceador.encaminhador import Encaminhador, SemPrimario
 
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Balanceador — banco distribuido")
-enrutador = Enrutador(cargar_nodos(), url_base)
-
-_RUTAS_INTERNAS = ("/interno/", "/docs", "/openapi.json", "/redoc")
+app = FastAPI(title="Balanceador — banco distribuído")
+encaminhador = Encaminhador(carregar_nos(), url_base)
 
 
-@app.get("/salud")
-def salud():
-    return {"balanceador": "activo"}
+@app.get("/saude")
+def saude():
+    return {"balanceador": "ativo"}
 
 
-@app.api_route("/{ruta:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def proxy(ruta: str, request: Request):
-    cuerpo = await request.body()
-    es_escritura = request.method != "GET"
-    respuesta = enrutador.reenviar(
-        request.method, f"/{ruta}", es_escritura,
-        content=cuerpo,
-        headers={k: v for k, v in request.headers.items() if k.lower() != "host"},
-        params=dict(request.query_params),
-    )
-    return Response(content=respuesta.content, status_code=respuesta.status_code,
-                     media_type=respuesta.headers.get("content-type"))
+@app.api_route("/{caminho:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def proxy(caminho: str, request: Request):
+    corpo = await request.body()
+    try:
+        # Numa thread: o httpx aqui é síncrono, e chamá-lo direto no laço
+        # assíncrono atenderia um pedido de cada vez.
+        resposta = await run_in_threadpool(
+            encaminhador.reenviar, request.method, f"/{caminho}",
+            content=corpo,
+            headers={k: v for k, v in request.headers.items()
+                     if k.lower() not in ("host", "content-length")},
+            params=dict(request.query_params),
+        )
+    except SemPrimario as falha:
+        # A mesma forma de erro do banco: o painel tem um só caminho de tratamento.
+        return JSONResponse(status_code=503, content={
+            "erro": "sem_primario",
+            "mensagem": f"{falha} — há uma eleição a decorrer ou não há maioria; "
+                        "repetir com o mesmo op_id"})
+    cabecalhos = {}
+    if "x-leitura-de-replica" in resposta.headers:
+        cabecalhos["X-Leitura-De-Replica"] = resposta.headers["x-leitura-de-replica"]
+    return Response(content=resposta.content, status_code=resposta.status_code,
+                    media_type=resposta.headers.get("content-type"), headers=cabecalhos)
 
 
-# Handler de AWS Lambda — mismo `app` de FastAPI, sin duplicar rutas ni
-# lógica. Mangum traduce el evento de Lambda Function URL a una petición
-# ASGI normal; `enrutador` no sabe ni le importa si lo invocó uvicorn o
-# Lambda. Ver GUIA-DESPLIEGUE.md, sección "Balanceador en Lambda".
+# Handler do AWS Lambda — a mesma `app` do FastAPI, sem duplicar rotas nem
+# lógica. O Mangum traduz o evento de uma Lambda Function URL num pedido ASGI
+# normal; o `encaminhador` não sabe nem quer saber se foi chamado pelo uvicorn
+# ou pelo Lambda. Ver GUIA-IMPLANTACAO.md, secção "Balanceador em Lambda".
 try:
     from mangum import Mangum
 
     handler = Mangum(app)
 except ImportError:
-    # mangum no es dependencia de banco/backend ni de docker-compose local
-    # (solo hace falta en el paquete que se sube a Lambda) — no debe romper
-    # `uvicorn balanceador.main:app` en desarrollo si no está instalado.
+    # o mangum não é dependência do backend nem do docker-compose local (só
+    # faz falta no pacote que sobe para o Lambda) — não deve partir
+    # `uvicorn balanceador.main:app` em desenvolvimento se não estiver instalado.
     handler = None

@@ -1,41 +1,162 @@
-// Habla siempre con el balanceador (/api en desarrollo, ver vite.config.js;
-// en producción, Nginx reenvía /api al balanceador — ver nginx.conf).
+// Fala sempre com `/api`. Quem reescreve esse prefixo depende de onde o
+// painel corre — o vite.config.js em desenvolvimento, o nginx.conf em
+// contentor, o vercel.json na nuvem — e por isso este ficheiro não conhece
+// endereço nenhum. Do outro lado de `/api` está sempre o balanceador.
+import { guardarToken, lerToken, terminarSessao } from "../lib/sessao.js";
+
 const BASE = "/api";
 
-function opId() {
-  return crypto.randomUUID();
+// Sem primário, o balanceador lê de uma réplica e diz qual
+// (`X-Leitura-De-Replica`). O ecrã avisa que os dados podem vir atrasados.
+let replicaDaUltimaLeitura = null;
+const quemOuve = new Set();
+
+export function ouvirLeituraDeReplica(funcao) {
+  quemOuve.add(funcao);
+  funcao(replicaDaUltimaLeitura);
+  return () => quemOuve.delete(funcao);
 }
 
-async function peticion(ruta, { metodo = "GET", cuerpo, token } = {}) {
-  const cabeceras = { "Content-Type": "application/json" };
-  if (metodo !== "GET") cabeceras["X-Op-Id"] = opId();
-  if (token) cabeceras["Authorization"] = `Bearer ${token}`;
+function anotarOrigem(resposta) {
+  const no = resposta.headers.get("X-Leitura-De-Replica");
+  if (no === replicaDaUltimaLeitura) return;
+  replicaDaUltimaLeitura = no;
+  quemOuve.forEach((funcao) => funcao(no));
+}
 
-  const respuesta = await fetch(`${BASE}${ruta}`, {
+export class ErroDoBanco extends Error {
+  constructor(mensagem, estado, codigo) {
+    super(mensagem);
+    this.estado = estado;
+    this.codigo = codigo;
+  }
+}
+
+async function pedir(caminho, { metodo = "GET", corpo } = {}) {
+  const cabecalhos = { "Content-Type": "application/json" };
+  const token = lerToken();
+  if (token) cabecalhos.Authorization = `Bearer ${token}`;
+
+  const resposta = await fetch(`${BASE}${caminho}`, {
     method: metodo,
-    headers: cabeceras,
-    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+    headers: cabecalhos,
+    body: corpo ? JSON.stringify(corpo) : undefined,
   });
 
-  const datos = await respuesta.json().catch(() => null);
-  if (!respuesta.ok) {
-    throw new Error(datos?.detail?.mensagem || datos?.detail || "error de red");
+  if (metodo === "GET" && resposta.ok) anotarOrigem(resposta);
+
+  const dados = await resposta.json().catch(() => null);
+  if (!resposta.ok) {
+    if (resposta.status === 401 && token) terminarSessao();
+    // Todos os erros do banco têm a mesma forma, por isso há um só caminho
+    // de tratamento.
+    throw new ErroDoBanco(dados?.mensagem || "o banco não respondeu",
+                          resposta.status, dados?.erro);
   }
-  return datos;
+  return dados;
 }
 
+// Uma intenção do utilizador é um op_id. Carregar duas vezes em "Transferir"
+// com os mesmos dados, depois de uma falha de rede ou de um 503 sem maioria,
+// reutiliza o op_id da primeira tentativa: se ela chegou a ser aplicada, o
+// banco devolve o resultado guardado em vez de mover o dinheiro outra vez.
+//
+// A intenção só se fecha quando há uma resposta definitiva — sucesso ou uma
+// recusa do banco (4xx). Mudar os dados é outra intenção, com op_id novo.
+export function criarIntencao() {
+  let chave = null;
+  let opId = null;
+  return {
+    para(dados) {
+      const nova = JSON.stringify(dados);
+      if (nova !== chave) {
+        chave = nova;
+        opId = crypto.randomUUID();
+      }
+      return opId;
+    },
+    concluir() {
+      chave = null;
+      opId = null;
+    },
+  };
+}
+
+async function escrever(caminho, corpo, intencao) {
+  const op_id = intencao.para({ caminho, ...corpo });
+  try {
+    const resultado = await pedir(caminho, { metodo: "POST", corpo: { ...corpo, op_id } });
+    intencao.concluir();
+    return resultado;
+  } catch (falha) {
+    if (falha instanceof ErroDoBanco && falha.estado < 500) intencao.concluir();
+    throw falha;
+  }
+}
+
+// `valor` e `saldoInicial` são texto, e vão como texto. Nunca se faz
+// Number(...) em dinheiro: seria o float que o banco proíbe, reintroduzido
+// no último passo.
 export const api = {
-  login: (email, contrasena) =>
-    peticion("/auth/login", { metodo: "POST", cuerpo: { email, contrasena } }),
-  crearCuenta: (usuario_id, moneda, saldo_inicial_centavos) =>
-    peticion("/cuentas", { metodo: "POST", cuerpo: { usuario_id, moneda, saldo_inicial_centavos } }),
-  consultarSaldo: (cuentaId) => peticion(`/cuentas/${cuentaId}`),
-  consultarExtracto: (cuentaId) => peticion(`/cuentas/${cuentaId}/extracto`),
-  depositar: (cuentaId, montoCentavos) =>
-    peticion(`/cuentas/${cuentaId}/deposito`, { metodo: "POST", cuerpo: { monto_centavos: montoCentavos } }),
-  transferir: (origenId, destinoId, montoCentavos) =>
-    peticion("/transferencias", {
-      metodo: "POST",
-      cuerpo: { cuenta_origen_id: origenId, cuenta_destino_id: destinoId, monto_centavos: montoCentavos },
-    }),
+  // Que nó respondeu, e com que papel. `/saude` não serve: através do
+  // balanceador, quem responde a `/saude` é o próprio balanceador.
+  estadoDoNo: () => pedir("/interno/estado"),
+
+  // Os três nós, vistos pelo primário (que pergunta aos outros dois).
+  cluster: () => pedir("/interno/cluster"),
+
+  registar: (nome, email, senha) =>
+    pedir("/auth/registo", { metodo: "POST", corpo: { nome, email, senha } }),
+
+  entrar: async (email, senha) => {
+    const { token } = await pedir("/auth/login", {
+      metodo: "POST", corpo: { email, senha },
+    });
+    guardarToken(token);
+  },
+
+  listarContas: () => pedir("/contas"),
+
+  // O titular e a moeda de `0001 / 12345678-9`, antes de lhe transferir.
+  contaPorNumero: (numero) =>
+    pedir(`/contas/por-numero/${encodeURIComponent(numero.trim())}`),
+
+  // `produto` traz moeda, produto, taxa_juros (texto, "0.10" é 10 %) e
+  // prazo_dias; os campos vazios não vão.
+  // Sem id: o servidor dá-lhe um a partir do número que sorteia.
+  criarConta: (saldoInicial, produto, intencao) =>
+    escrever("/contas", {
+      saldo_inicial: saldoInicial || "0",
+      ...Object.fromEntries(Object.entries(produto).filter(([, v]) => v !== "" && v != null)),
+    }, intencao),
+
+  consultarSaldo: (conta) => pedir(`/contas/${conta}`),
+
+  consultarExtrato: (conta) => pedir(`/contas/${conta}/extrato`),
+
+  depositar: (conta, valor, intencao) =>
+    escrever(`/contas/${conta}/deposito`, { valor }, intencao),
+
+  sacar: (conta, valor, intencao) =>
+    escrever(`/contas/${conta}/saque`, { valor }, intencao),
+
+  transferir: (de, para, valor, intencao) =>
+    escrever("/transferencias", { de, para, valor }, intencao),
+
+  converter: (de, para, valor, intencao) =>
+    escrever("/transferencias/conversao", { de, para, valor }, intencao),
+
+  // Entre duas contas próprias: o servidor decide se é transferência ou câmbio.
+  autotransferir: (de, para, valor, intencao) =>
+    escrever("/transferencias/autotransferencia", { de, para, valor }, intencao),
+
+  transferirParaFora: (de, sistemaExternoId, valor, intencao) =>
+    escrever("/transferencias/externa",
+             { de, sistema_externo_id: sistemaExternoId, valor }, intencao),
+
+  sistemasExternos: () => pedir("/sistemas-externos"),
+
+  creditarJuros: () => pedir("/admin/juros", { metodo: "POST" }),
+
+  auditoria: () => pedir("/auditoria"),
 };

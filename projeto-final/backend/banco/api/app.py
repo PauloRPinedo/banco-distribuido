@@ -1,20 +1,55 @@
-"""Ensambla la app FastAPI — cada router es un *controller* de
-diagrama-de-clases-interfaz.md.
-"""
+"""A aplicação: as rotas de cliente, as internas e a tradução uniforme dos erros."""
+
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 
-from banco.api import rutas_auditoria, rutas_auth, rutas_cuentas, rutas_internas, rutas_transferencias
-
-
-def crear_app() -> FastAPI:
-    app = FastAPI(title="Banco distribuido", version="0.1.0")
-    app.include_router(rutas_cuentas.router)
-    app.include_router(rutas_transferencias.router)
-    app.include_router(rutas_auditoria.router)
-    app.include_router(rutas_auth.router)
-    app.include_router(rutas_internas.router)
-    return app
+from banco.api import (externas, rotas_admin, rotas_auditoria, rotas_auth, rotas_contas,
+                       rotas_internas, rotas_transferencias, traducao)
+from banco.api.dependencias import fechar_no_do_processo, no_do_processo
+from banco.dominio.erros import ErroDoBanco
 
 
-app = crear_app()
+@asynccontextmanager
+async def ciclo_de_vida(_aplicacao: FastAPI):
+    """Cria o nó, recupera o que ficou por aplicar, e começa a bater o coração.
+
+    O reconciliador termina as transferências externas que ficaram a meio
+    (`api/externas.py`); só trabalha enquanto este nó for o primário.
+    """
+    no_do_processo().arrancar()
+    reconciliador = externas.Reconciliador()
+    reconciliador.arrancar()
+    yield
+    reconciliador.parar()
+    fechar_no_do_processo()
+
+
+def criar_app() -> FastAPI:
+    aplicacao = FastAPI(title="Banco distribuído — Projeto final", version="0.3.0",
+                        lifespan=ciclo_de_vida)
+
+    # Registados por classe raiz: o Starlette procura pela hierarquia, por isso
+    # um `SaldoInsuficiente` ou um `NaoSouPrimario` cai aqui sem estar listado.
+    aplicacao.add_exception_handler(ErroDoBanco, traducao.erro_do_banco)
+    aplicacao.add_exception_handler(RequestValidationError, traducao.corpo_invalido)
+
+    aplicacao.include_router(rotas_auth.router)
+    aplicacao.include_router(rotas_contas.router)
+    aplicacao.include_router(rotas_transferencias.router)
+    aplicacao.include_router(rotas_auditoria.router)
+    aplicacao.include_router(rotas_admin.router)
+    aplicacao.include_router(rotas_internas.router)
+
+    @aplicacao.get("/saude")
+    def saude() -> dict:
+        """Diz que o processo está de pé, sem tocar na base."""
+        no = no_do_processo()
+        return {"no": no.id, "estado": "de pé",
+                "papel": no.estado_do_no()["papel"]}
+
+    return aplicacao
+
+
+app = criar_app()

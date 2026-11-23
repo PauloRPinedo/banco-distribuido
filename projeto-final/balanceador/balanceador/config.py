@@ -1,26 +1,26 @@
-"""Lee la misma lista de nodos que usa el clúster
-(config/cluster.exemplo.json) — el balanceador no inventa su propia lista,
-para que nunca queden desincronizadas.
+"""Lê a mesma lista de nós que o cluster usa (config/cluster.exemplo.json) —
+o balanceador não inventa a sua própria lista, para que nunca fiquem
+dessincronizadas.
 """
 
 import json
 import os
 
 
-def cargar_nodos(ruta: str | None = None) -> list[dict]:
-    """En Docker/VM: lee un archivo montado (`CLUSTER_CONFIG`). En Lambda no
-    hay volumen que montar, así que si `CLUSTER_CONFIG_JSON` trae el JSON
-    directo (variable de entorno de la función), se usa esa en vez de
-    buscar un archivo — mismo formato, solo cambia de dónde sale.
+def carregar_nos(caminho: str | None = None) -> list[dict]:
+    """Em Docker/VM: lê um ficheiro montado (`CLUSTER_CONFIG`). Em Lambda não
+    há volume para montar, por isso, se `CLUSTER_CONFIG_JSON` trouxer o JSON
+    diretamente (variável de ambiente da função), usa-se essa em vez de
+    procurar um ficheiro — o mesmo formato, só muda de onde vem.
     """
-    en_linea = os.environ.get("CLUSTER_CONFIG_JSON")
-    if en_linea:
-        return json.loads(en_linea)["nos"]
+    em_linha = os.environ.get("CLUSTER_CONFIG_JSON")
+    if em_linha:
+        return json.loads(em_linha)["nos"]
 
-    ruta = ruta or os.environ.get("CLUSTER_CONFIG", "/config/cluster.json")
-    with open(ruta, encoding="utf-8") as archivo:
-        return json.load(archivo)["nos"]
+    caminho = caminho or os.environ.get("CLUSTER_CONFIG", "/config/cluster.json")
+    with open(caminho, encoding="utf-8") as ficheiro:
+        return json.load(ficheiro)["nos"]
 
 
-def url_base(nodo: dict) -> str:
-    return f"http://{nodo['endereco']}:{nodo['porta']}"
+def url_base(no: dict) -> str:
+    return f"http://{no['endereco']}:{no['porta']}"

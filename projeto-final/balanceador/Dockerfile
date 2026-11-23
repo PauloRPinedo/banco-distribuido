@@ -1,16 +1,15 @@
-# Imagen del balanceador — servicio propio, sin estado (ver GUIA-DESPLIEGUE.md).
+# Imagem do balanceador — serviço próprio, sem estado (ver GUIA-IMPLANTACAO.md).
 FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requisitos.txt .
+RUN pip install --no-cache-dir -r requisitos.txt
 
 COPY balanceador/ ./balanceador/
 
-# La lista de nodos se monta como volumen (mismo cluster.json que usan los
-# nodos) — no se hornea dentro de la imagen, para no reconstruir la imagen
-# cada vez que cambian direcciones.
+# A lista de nós monta-se como volume (o mesmo cluster.json que os nós usam) —
+# não vai dentro da imagem, para não a reconstruir sempre que mudam endereços.
 ENV CLUSTER_CONFIG=/config/cluster.json
 
 EXPOSE 8000

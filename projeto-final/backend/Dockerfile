@@ -1,18 +1,16 @@
-# Imagen del backend de un nodo — ver GUIA-DESPLIEGUE.md.
+# Imagem de um nó — a mesma para A, B e C; só muda o ambiente com que arranca
+# (NO_ID, PGHOST). Ver docs/GUIA-IMPLANTACAO.md.
 FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requisitos.txt .
+RUN pip install --no-cache-dir -r requisitos.txt
 
 COPY banco/ ./banco/
 
-# --id y --puerto se pasan por variables de entorno (NODO_ID, PUERTO), para
-# que la misma imagen sirva a cualquiera de los 2-3 nodos — solo cambia la
-# configuración con la que se levanta el contenedor.
-ENV NODO_ID=A
-ENV PUERTO=8001
+ENV NO_ID=A
+ENV PORTA=8001
 
 EXPOSE 8001
 

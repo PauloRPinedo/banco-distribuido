@@ -1,10 +1,10 @@
-# Imagen del balanceador para AWS Lambda (contenedor) — distinta de
-# `Dockerfile` (esa es para docker-compose/EC2 con uvicorn). Ver
-# GUIA-DESPLIEGUE.md, sección "Balanceador en Lambda".
+# Imagem do balanceador para o AWS Lambda (contentor) — diferente de
+# `Dockerfile` (essa é para docker-compose/EC2 com uvicorn). Ver
+# GUIA-IMPLANTACAO.md, secção "Balanceador em Lambda".
 FROM public.ecr.aws/lambda/python:3.12
 
-COPY requirements.txt requirements-lambda.txt .
-RUN pip install --no-cache-dir -r requirements-lambda.txt
+COPY requisitos.txt requisitos-lambda.txt .
+RUN pip install --no-cache-dir -r requisitos-lambda.txt
 
 COPY balanceador/ ${LAMBDA_TASK_ROOT}/balanceador/
 

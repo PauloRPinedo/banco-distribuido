@@ -1,0 +1,2 @@
+-r requisitos.txt
+mangum==0.22.0

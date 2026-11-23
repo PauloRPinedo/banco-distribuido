@@ -1,3 +1,3 @@
-from banco.cluster.nodo import Nodo
+from banco.cluster.no import No
 
-__all__ = ["Nodo"]
+__all__ = ["No"]

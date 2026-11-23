@@ -1,35 +1,45 @@
-"""Arranque de un nodo del banco.
+"""Arranque de um nó do banco.
 
-    python3 -m banco.servidor --id A --puerto 8001
+    python3 -m banco.servidor --id A --porta 8001
 
-Mismo patrón que prototipo-1/banco/servidor.py — el nodo se identifica por
-`--id`, y esa identidad es la que usa config/cluster.exemplo.json para saber
-a quién más contactar (cuando el protocolo real exista).
+O nó identifica-se por `--id`, e é essa identidade que o ficheiro apontado por
+CLUSTER_CONFIG usa para saber quem são os outros nós. Sem CLUSTER_CONFIG, o nó
+funciona sozinho (maioria de um).
 """
 
 import argparse
 import os
 import sys
 
-import uvicorn
 
-
-def analizar(argumentos: list[str] | None = None) -> argparse.Namespace:
-    analizador = argparse.ArgumentParser(
-        prog="banco.servidor", description="Un nodo del banco distribuido.")
-    analizador.add_argument("--id", default=os.environ.get("NODO_ID", "A"))
-    analizador.add_argument("--puerto", type=int,
-                             default=int(os.environ.get("PUERTO", "8001")))
-    analizador.add_argument("--direccion", default="0.0.0.0",
-                             help="0.0.0.0, no 127.0.0.1 — para ser alcanzable desde otro nodo")
-    return analizador.parse_args(argumentos)
+def analisar(argumentos: list[str] | None = None) -> argparse.Namespace:
+    analisador = argparse.ArgumentParser(
+        prog="banco.servidor", description="Um nó do banco distribuído.")
+    analisador.add_argument(
+        "--id", default=os.environ.get("NO_ID", "A"),
+        help="identifica o nó no arranque, em /saude e em /interno/estado")
+    analisador.add_argument(
+        "--porta", type=int, default=int(os.environ.get("PORTA", "8001")))
+    analisador.add_argument(
+        "--endereco", default="0.0.0.0",
+        help="0.0.0.0, e não 127.0.0.1, para ser alcançável de outra máquina")
+    return analisador.parse_args(argumentos)
 
 
 def main(argumentos: list[str] | None = None) -> int:
-    opciones = analizar(argumentos)
-    os.environ["NODO_ID"] = opciones.id
-    print(f"nodo {opciones.id} escuchando en {opciones.direccion}:{opciones.puerto}", flush=True)
-    uvicorn.run("banco.api.app:app", host=opciones.direccion, port=opciones.puerto)
+    # O uvicorn entra aqui, e não no topo: assim `--help` funciona numa
+    # máquina sem a pilha instalada.
+    import logging
+
+    import uvicorn
+
+    # BANCO_LOG=INFO mostra as eleições e os mandatos (`banco.cluster`).
+    logging.basicConfig(level=os.environ.get("BANCO_LOG", "WARNING"),
+                        format="%(asctime)s %(name)s %(message)s")
+    opcoes = analisar(argumentos)
+    os.environ["NO_ID"] = opcoes.id
+    print(f"nó {opcoes.id} à escuta em {opcoes.endereco}:{opcoes.porta}", flush=True)
+    uvicorn.run("banco.api.app:app", host=opcoes.endereco, port=opcoes.porta)
     return 0
 
 

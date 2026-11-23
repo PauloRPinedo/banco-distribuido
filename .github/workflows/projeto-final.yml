@@ -1,0 +1,139 @@
+# CI/CD do projeto final. Fica na raiz porque o GitHub só lê workflows em
+# .github/workflows/ da raiz do repositório; só corre quando muda projeto-final/.
+name: CI/CD — Projeto final
+
+on:
+  push:
+    branches: [main]
+    paths: ["projeto-final/**", ".github/workflows/projeto-final.yml"]
+  pull_request:
+    paths: ["projeto-final/**", ".github/workflows/projeto-final.yml"]
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: banco_teste
+          POSTGRES_USER: banco
+          POSTGRES_PASSWORD: banco
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U banco -d banco_teste"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar dependências
+        run: pip install -r projeto-final/backend/requisitos.txt -r projeto-final/balanceador/requisitos.txt
+      - name: Testes do backend, com base (incluído o cluster com três processos)
+        env:
+          BANCO_BD_TESTE: postgresql://banco:banco@localhost:5432/banco_teste
+        run: |
+          cd projeto-final/backend
+          python -m unittest discover -s tests -v
+      - name: Testes do balanceador
+        run: |
+          cd projeto-final/balanceador
+          python -m unittest discover -s tests -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: O painel compila
+        run: |
+          cd projeto-final/frontend
+          npm ci
+          npm run build
+
+  construir-e-publicar:
+    needs: testes
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      imagem: ${{ steps.nome.outputs.imagem }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: nome
+        # Os nomes de imagem têm de estar em minúsculas, e o dono do
+        # repositório (PauloRPinedo) não está.
+        run: echo "imagem=ghcr.io/${GITHUB_REPOSITORY,,}/projeto-final" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build e push — backend (instâncias dos nós)
+        uses: docker/build-push-action@v6
+        with:
+          context: projeto-final/backend
+          push: true
+          tags: ${{ steps.nome.outputs.imagem }}/backend:${{ github.sha }},${{ steps.nome.outputs.imagem }}/backend:latest
+      - name: Credenciais da AWS (para publicar no ECR)
+        if: ${{ vars.AWS_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Build e push — balanceador (imagem para o Lambda, vai para o ECR)
+        # O Lambda com imagem de contentor só aceita imagens do Amazon ECR.
+        if: ${{ vars.AWS_ROLE_ARN != '' }}
+        run: |
+          aws ecr get-login-password --region ${{ vars.AWS_REGION }} | \
+            docker login --username AWS --password-stdin ${{ vars.ECR_REGISTRY }}
+          docker build -f projeto-final/balanceador/Dockerfile.lambda \
+            -t ${{ vars.ECR_REGISTRY }}/balanceador-lambda:${{ github.sha }} \
+            projeto-final/balanceador
+          docker push ${{ vars.ECR_REGISTRY }}/balanceador-lambda:${{ github.sha }}
+      # O frontend não se constrói aqui: o Vercel compila-o a cada push.
+
+  implantar:
+    needs: construir-e-publicar
+    # Desligado até haver máquinas e segredos: liga-se com a variável de
+    # repositório IMPLANTACAO_ATIVA=true. Sem isto, cada push falhava aqui.
+    if: github.event_name == 'push' && vars.IMPLANTACAO_ATIVA == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      # Um nó de cada vez: os outros dois mantêm a maioria durante a troca.
+      max-parallel: 1
+      matrix:
+        no: [a, b, c]
+    steps:
+      - name: Implantar o nó ${{ matrix.no }} por SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets[format('SSH_HOST_{0}', matrix.no)] }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          # Os mesmos nomes e ficheiros que a GUIA-IMPLANTACAO.md: o contentor
+          # chama-se backend-X, e /etc/banco/ tem o cluster.json e o .env do nó
+          # (NO_ID, PG*, SECRET_KEY, CHAVE_ADMIN, CLUSTER_CONFIG=/config/cluster.json).
+          script: |
+            docker pull ${{ needs.construir-e-publicar.outputs.imagem }}/backend:latest
+            docker rm -f backend-${{ matrix.no }} || true
+            docker run -d --name backend-${{ matrix.no }} -p 8001:8001 --restart unless-stopped \
+              -v /etc/banco/cluster.json:/config/cluster.json:ro \
+              --env-file /etc/banco/backend-${{ matrix.no }}.env \
+              ${{ needs.construir-e-publicar.outputs.imagem }}/backend:latest
+
+  atualizar-balanceador:
+    needs: [construir-e-publicar, implantar]
+    if: github.event_name == 'push' && vars.IMPLANTACAO_ATIVA == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Credenciais da AWS (para atualizar o Lambda)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Atualizar a função Lambda do balanceador
+        run: |
+          aws lambda update-function-code \
+            --function-name banco-balanceador \
+            --image-uri ${{ vars.ECR_REGISTRY }}/balanceador-lambda:${{ github.sha }}

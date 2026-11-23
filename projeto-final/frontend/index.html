@@ -1,12 +1,23 @@
 <!doctype html>
-<html lang="es">
+<html lang="pt">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Banco distribuido</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#820AD1" />
+    <meta name="description" content="Banco distribuído: contas, depósitos e transferências em três nós." />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- A letra é servida por nós (public/tipos), não por um CDN: o painel
+         não depende de terceiros para abrir. -->
+    <link rel="preload" href="/tipos/instrument-sans-latin.woff2"
+          as="font" type="font/woff2" crossorigin />
+    <title>Banco distribuído</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="raiz"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -1,15 +1,21 @@
-"""RepositorioSistemasExternos — RF-25."""
+"""Leitura da tabela `sistema_externo` — RF-25."""
 
 
 class RepositorioSistemasExternos:
 
-    def __init__(self, conexion):
-        self._conexion = conexion
+    def __init__(self, conexao) -> None:
+        self._conexao = conexao
 
-    def buscar_por_id(self, sistema_externo_id: str) -> dict | None:
-        with self._conexion.cursor() as cur:
-            cur.execute(
-                "SELECT * FROM sistema_externo WHERE id = %s AND activo = TRUE",
+    def ativo(self, sistema_externo_id: str) -> bool:
+        with self._conexao.cursor() as cursor:
+            cursor.execute(
+                "SELECT 1 FROM sistema_externo WHERE id = %s AND ativo",
                 (sistema_externo_id,),
             )
-            return cur.fetchone()
+            return cursor.fetchone() is not None
+
+    def listar(self) -> list[dict]:
+        with self._conexao.cursor() as cursor:
+            cursor.execute(
+                "SELECT id, nome, codigo FROM sistema_externo WHERE ativo ORDER BY id")
+            return cursor.fetchall()

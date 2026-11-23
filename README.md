@@ -35,7 +35,7 @@ O primário só responde ao cliente depois de a operação estar gravada em disc
 |---|---|---|---|
 | Protótipo 1 | [`prototipo-1/`](prototipo-1/) | Um banco correto, num ou em dois nós | **reconstruído**, 111 testes |
 | Protótipo 2 | [`prototipo-2/`](prototipo-2/) | Sobrevive à queda de um servidor | **feito**, 251 testes e provas com failover |
-| Etapa final | — | Implanta na AWS, mede e demonstra | próxima |
+| Projeto final | [`projeto-final/`](projeto-final/) | Implanta na AWS, mede e demonstra | **código pronto**, 266 testes e prova com failover em local; falta implantar na AWS |
 
 O Protótipo 1 foi entregue em setembro de 2026 com um banco correto num nó só, e
 reaberto logo a seguir para receber o PostgreSQL, a replicação, a injeção de falhas
@@ -58,8 +58,8 @@ uma etapa para a outra está em
 | Quero ver | Comando |
 |---|---|
 | A etapa 1 como foi entregue | `git show 7b430e6` |
-| A etapa 1 reaberta, com replicação e failover | `git show eab7c4a` |
-| A etapa 2 sobre a biblioteca padrão, com failover | `git show d8e1754:prototipo-2/README.md` |
+| A etapa 1 reaberta, com replicação e failover | `git show be54f62` |
+| A etapa 2 sobre a biblioteca padrão, com failover | `git show dababcc:prototipo-2/README.md` |
 
 Cada pasta é autocontida e tem o seu próprio README, com o que foi entregue e como
 o trabalho foi repartido entre os três.

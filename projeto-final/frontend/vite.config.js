@@ -1,17 +1,18 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// El frontend habla siempre con el balanceador (nunca con un nodo directo)
-// — ver docs/entregables/03-arquitectura/diagrama-de-componentes.md.
+// O painel fala sempre com `/api`, nunca com um endereço absoluto. Em
+// desenvolvimento é o balanceador (porta 8000) que está do outro lado, tal
+// como no contentor e na nuvem: o painel nunca escolhe um nó.
 export default defineConfig({
-  plugins: [react()],
   server: {
     proxy: {
       "/api": {
         target: process.env.VITE_BALANCEADOR_URL || "http://localhost:8000",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ""),
+        rewrite: (caminho) => caminho.replace(/^\/api/, ""),
       },
     },
   },
+  plugins: [react()],
 });

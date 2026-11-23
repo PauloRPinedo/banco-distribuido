@@ -1,2 +1,0 @@
--r requirements.txt
-mangum==0.22.0
