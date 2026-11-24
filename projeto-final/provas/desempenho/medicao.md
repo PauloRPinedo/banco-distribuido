@@ -1,6 +1,6 @@
 # Medição de desempenho (RNF-04, RNF-05)
 
-Gerado por `provas/scripts/medir_desempenho.py` em 2026-11-23 14:00, 10 s por nível.
+Gerado por `provas/scripts/medir_desempenho.py` em 2026-11-23 15:17, 10 s por nível.
 
 Máquina: 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz, 8 núcleos lógicos, Linux 6.12.117+deb13-amd64. Os três nós, as três bases, o balanceador e o cliente correm todos nela, no `docker compose`.
 
@@ -10,42 +10,42 @@ Metas: 500 transações por segundo (RNF-04) e p99 abaixo de 200 ms (RNF-05).
 
 | Clientes | Pedidos | Erros | Por segundo | p50 | p95 | p99 |
 |---:|---:|---:|---:|---:|---:|---:|
-| 1 | 55 | 0 | 5 | 179.0 ms | 223.9 ms | 259.6 ms |
-| 2 | 94 | 0 | 9 | 212.8 ms | 253.1 ms | 303.3 ms |
-| 4 | 96 | 0 | 9 | 427.8 ms | 481.7 ms | 507.4 ms |
-| 8 | 101 | 0 | 9 | 833.7 ms | 900.0 ms | 912.8 ms |
-| 16 | 104 | 0 | 9 | 1727.7 ms | 1899.0 ms | 1934.1 ms |
-| 32 | 29 | 66 | 2 | 2012.3 ms | 3687.9 ms | 3697.9 ms |
+| 1 | 299 | 0 | 30 | 32.6 ms | 40.6 ms | 50.1 ms |
+| 2 | 430 | 0 | 43 | 45.4 ms | 57.6 ms | 68.5 ms |
+| 4 | 594 | 0 | 59 | 64.7 ms | 90.0 ms | 109.1 ms |
+| 8 | 734 | 0 | 73 | 105.0 ms | 149.7 ms | 176.7 ms |
+| 16 | 840 | 0 | 83 | 183.6 ms | 271.7 ms | 322.2 ms |
+| 32 | 886 | 0 | 87 | 354.1 ms | 520.0 ms | 611.6 ms |
 
 ## Leituras, pelo balanceador
 
 | Clientes | Pedidos | Erros | Por segundo | p50 | p95 | p99 |
 |---:|---:|---:|---:|---:|---:|---:|
-| 1 | 143 | 0 | 14 | 64.1 ms | 94.3 ms | 108.8 ms |
-| 2 | 251 | 0 | 25 | 77.1 ms | 104.2 ms | 119.0 ms |
-| 4 | 376 | 0 | 37 | 103.9 ms | 138.3 ms | 235.5 ms |
-| 8 | 444 | 0 | 44 | 175.1 ms | 237.8 ms | 258.5 ms |
-| 16 | 440 | 0 | 43 | 366.3 ms | 516.9 ms | 594.8 ms |
-| 32 | 484 | 0 | 47 | 680.7 ms | 897.8 ms | 1022.5 ms |
+| 1 | 954 | 0 | 95 | 10.0 ms | 14.0 ms | 19.2 ms |
+| 2 | 1531 | 0 | 153 | 12.8 ms | 17.8 ms | 23.4 ms |
+| 4 | 1858 | 0 | 186 | 20.7 ms | 32.0 ms | 42.6 ms |
+| 8 | 1919 | 0 | 191 | 39.0 ms | 67.7 ms | 87.0 ms |
+| 16 | 2092 | 0 | 208 | 72.8 ms | 115.2 ms | 143.8 ms |
+| 32 | 1803 | 0 | 177 | 166.2 ms | 285.8 ms | 373.2 ms |
 
-## Escritas, ao primário (nó B, direto)
-
-| Clientes | Pedidos | Erros | Por segundo | p50 | p95 | p99 |
-|---:|---:|---:|---:|---:|---:|---:|
-| 1 | 79 | 0 | 8 | 130.6 ms | 152.9 ms | 160.6 ms |
-| 2 | 98 | 0 | 10 | 203.5 ms | 257.1 ms | 319.4 ms |
-| 4 | 101 | 0 | 10 | 399.3 ms | 449.6 ms | 460.0 ms |
-| 8 | 105 | 0 | 10 | 802.2 ms | 874.3 ms | 895.4 ms |
-| 16 | 108 | 0 | 9 | 1642.8 ms | 1879.7 ms | 1974.6 ms |
-| 32 | 127 | 0 | 10 | 3292.1 ms | 3365.1 ms | 3379.7 ms |
-
-## Leituras, ao primário (nó B, direto)
+## Escritas, ao primário (nó A, direto)
 
 | Clientes | Pedidos | Erros | Por segundo | p50 | p95 | p99 |
 |---:|---:|---:|---:|---:|---:|---:|
-| 1 | 414 | 0 | 41 | 23.4 ms | 29.2 ms | 33.7 ms |
-| 2 | 733 | 0 | 73 | 26.2 ms | 36.9 ms | 45.5 ms |
-| 4 | 1150 | 0 | 115 | 33.2 ms | 48.9 ms | 62.8 ms |
-| 8 | 1261 | 0 | 126 | 58.7 ms | 96.3 ms | 145.8 ms |
-| 16 | 1341 | 0 | 133 | 114.5 ms | 176.2 ms | 209.1 ms |
-| 32 | 1428 | 0 | 140 | 220.4 ms | 303.9 ms | 355.5 ms |
+| 1 | 334 | 0 | 33 | 28.7 ms | 38.0 ms | 52.9 ms |
+| 2 | 439 | 0 | 44 | 44.7 ms | 56.7 ms | 64.5 ms |
+| 4 | 657 | 0 | 65 | 59.3 ms | 76.4 ms | 91.8 ms |
+| 8 | 818 | 0 | 81 | 95.3 ms | 130.0 ms | 151.9 ms |
+| 16 | 999 | 0 | 99 | 156.2 ms | 200.2 ms | 282.6 ms |
+| 32 | 1112 | 0 | 110 | 287.9 ms | 343.5 ms | 370.1 ms |
+
+## Leituras, ao primário (nó A, direto)
+
+| Clientes | Pedidos | Erros | Por segundo | p50 | p95 | p99 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 1732 | 0 | 173 | 5.2 ms | 9.6 ms | 16.5 ms |
+| 2 | 2721 | 0 | 272 | 7.1 ms | 10.3 ms | 12.5 ms |
+| 4 | 2882 | 0 | 288 | 13.4 ms | 19.5 ms | 24.3 ms |
+| 8 | 2900 | 0 | 289 | 26.4 ms | 39.4 ms | 50.2 ms |
+| 16 | 3185 | 0 | 317 | 49.6 ms | 65.5 ms | 73.2 ms |
+| 32 | 3167 | 0 | 314 | 99.8 ms | 132.7 ms | 174.0 ms |

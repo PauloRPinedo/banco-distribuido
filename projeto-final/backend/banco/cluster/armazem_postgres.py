@@ -57,10 +57,11 @@ class ArmazemPostgres:
             finally:
                 self._conexao.autocommit = True
 
-    def ler_desde(self, indice: int) -> list[EntradaDeLog]:
+    def ler_desde(self, indice: int, limite: int | None = None) -> list[EntradaDeLog]:
         linhas = self._consultar(
             "SELECT indice, epoch, op_id, tipo, dados, instante "
-            "FROM log_replicado WHERE indice > %s ORDER BY indice", (indice,))
+            "FROM log_replicado WHERE indice > %s ORDER BY indice LIMIT %s",
+            (indice, limite))
         return [EntradaDeLog(indice=l[0], epoch=l[1], op_id=l[2], tipo=l[3],
                              dados=l[4], instante=l[5]) for l in linhas]
 

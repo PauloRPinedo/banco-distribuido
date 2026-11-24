@@ -1,10 +1,12 @@
 """Aplicar uma entrada confirmada do log às tabelas deste nó.
 
 É a mesma função no primário e nas réplicas, e é por isso que três nós com o
-mesmo log confirmado têm as mesmas tabelas. Cada entrada aplica-se numa
+mesmo log confirmado têm as mesmas tabelas. Um lote de entradas aplica-se numa
 transação, que avança também `estado_do_no.ultimo_aplicado`: se o processo
-cair a meio, ou a entrada ficou toda aplicada e o ponteiro avançou, ou nada
-aconteceu e ela volta a ser aplicada no arranque.
+cair a meio, ou o lote ficou todo aplicado e o ponteiro avançou, ou nada
+aconteceu e ele volta a ser aplicado no arranque. Uma transação por lote, e
+não por entrada, porque cada `COMMIT` espera pelo disco: com as escritas a
+chegar juntas, era o que mais custava depois da replicação.
 
 O dinheiro entra pelo destino e sai pela origem (ver `_colunas`). É essa
 assimetria que faz a auditoria somar certo sem conhecer as operações uma a uma.
@@ -88,6 +90,13 @@ class AplicadorPostgres:
             conexao.close()
 
     def aplicar(self, entrada: EntradaDeLog) -> dict:
+        return self.aplicar_lote([entrada]).get(entrada.op_id, {})
+
+    def aplicar_lote(self, entradas: list[EntradaDeLog]) -> dict[str, dict]:
+        """Aplica as entradas por ordem, numa transação; devolve as respostas por op_id."""
+        respostas: dict[str, dict] = {}
+        if not entradas:
+            return respostas
         conexao = self._obter_conexao()
         try:
             with conexao.cursor() as cursor:
@@ -96,27 +105,35 @@ class AplicadorPostgres:
                 cursor.execute("SELECT ultimo_aplicado FROM estado_do_no "
                                "WHERE no_id = %s FOR UPDATE", (self.no_id,))
                 linha = cursor.fetchone()
-                if linha is not None and entrada.indice <= linha["ultimo_aplicado"]:
-                    conexao.rollback()
-                    return RepositorioOperacoes(conexao).resposta_guardada(entrada.op_id) or {}
+                ja_aplicado = linha["ultimo_aplicado"] if linha is not None else 0
+                aplicado = ja_aplicado
 
-                cursor.execute("SAVEPOINT entrada")
-                try:
-                    resposta = self._aplicar(conexao, entrada)
-                except ErroDoBanco as erro:
-                    # Não devia acontecer: o primário validou contra o mesmo
-                    # estado. Se acontecer, acontece igual nos três nós (o
-                    # estado é o mesmo), por isso recusar aqui é determinista:
-                    # nada muda, o ponteiro avança, e o log não fica preso.
-                    cursor.execute("ROLLBACK TO SAVEPOINT entrada")
-                    registo.warning("nó %s: entrada %s recusada ao aplicar: %s",
-                                    self.no_id, entrada.indice, erro.mensagem)
-                    resposta = erro.para_json()
+                for entrada in entradas:
+                    if entrada.indice <= aplicado:
+                        respostas[entrada.op_id] = (RepositorioOperacoes(conexao)
+                                                    .resposta_guardada(entrada.op_id) or {})
+                        continue
+                    cursor.execute("SAVEPOINT entrada")
+                    try:
+                        respostas[entrada.op_id] = self._aplicar(conexao, entrada)
+                        cursor.execute("RELEASE SAVEPOINT entrada")
+                    except ErroDoBanco as erro:
+                        # Não devia acontecer: o primário validou contra o mesmo
+                        # estado. Se acontecer, acontece igual nos três nós (o
+                        # estado é o mesmo), por isso recusar aqui é
+                        # determinista: nada muda, o ponteiro avança, e o log
+                        # não fica preso.
+                        cursor.execute("ROLLBACK TO SAVEPOINT entrada")
+                        registo.warning("nó %s: entrada %s recusada ao aplicar: %s",
+                                        self.no_id, entrada.indice, erro.mensagem)
+                        respostas[entrada.op_id] = erro.para_json()
+                    aplicado = entrada.indice
 
-                cursor.execute("UPDATE estado_do_no SET ultimo_aplicado = %s "
-                               "WHERE no_id = %s", (entrada.indice, self.no_id))
+                if aplicado > ja_aplicado:
+                    cursor.execute("UPDATE estado_do_no SET ultimo_aplicado = %s "
+                                   "WHERE no_id = %s", (aplicado, self.no_id))
             conexao.commit()
-            return resposta
+            return respostas
         except Exception:
             conexao.rollback()
             raise

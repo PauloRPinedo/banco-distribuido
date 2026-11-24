@@ -32,9 +32,10 @@ class ArmazemEmMemoria:
         with self._lock:
             self._entradas.extend(entradas)
 
-    def ler_desde(self, indice: int) -> list[EntradaDeLog]:
+    def ler_desde(self, indice: int, limite: int | None = None) -> list[EntradaDeLog]:
         with self._lock:
-            return [e for e in self._entradas if e.indice > indice]
+            entradas = [e for e in self._entradas if e.indice > indice]
+        return entradas if limite is None else entradas[:limite]
 
     def ultimo_indice(self) -> int:
         with self._lock:

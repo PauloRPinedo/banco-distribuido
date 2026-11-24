@@ -7,7 +7,8 @@ manda o `Aplicador` aplicá-la às tabelas. A ordem completa:
 0. **Dono** — as contas de onde sai dinheiro são de quem pede? (aqui)
 1. **Já aplicada?** — devolve-se a resposta guardada (no `No`)
 2. **Validar** contra o estado atual, com o instante da operação (aqui, chamado
-   pelo `No` dentro do seu lock de escrita)
+   pelo `No` com as chaves da escrita reservadas: nenhuma outra escrita que
+   toque as mesmas contas está a validar ou por aplicar)
 3. **Gravar no log** deste nó, de forma durável (no `No`)
 4. **Replicar e esperar pela maioria** — sem ela, `sem_quorum` (no `No`)
 5. **Confirmar** e **aplicar** às tabelas (no `No`, pelo `Aplicador`)
@@ -54,7 +55,8 @@ class ServicoDeEscrita:
                         raise SemPermissao(f"a conta {identificador!r} não te pertence")
 
         return self._no.executar(
-            op_id, operacao, verificar=lambda instante: self._validar(operacao, instante))
+            op_id, operacao, verificar=lambda instante: self._validar(operacao, instante),
+            chaves=_chaves(operacao))
 
     def registar_usuario(self, nome: str, email: str, senha: str) -> dict:
         """O utilizador também passa pelo log: senão só existiria no primário,
@@ -70,7 +72,8 @@ class ServicoDeEscrita:
                 if RepositorioUsuarios(conexao).procurar_por_email(email) is not None:
                     raise EmailDuplicado(f"o email {email!r} já está registado")
 
-        return self._no.executar(f"registo-{operacao.id}", operacao, verificar)
+        return self._no.executar(f"registo-{operacao.id}", operacao, verificar,
+                                 chaves={f"email:{email}"})
 
     def registar_taxa(self, moeda_origem: str, moeda_destino: str,
                       taxa_milionesimos: int) -> dict:
@@ -90,14 +93,25 @@ class ServicoDeEscrita:
                     livro.extratos[identificador] = []
             operacao.validar(livro, instante)
             # O número é único no banco inteiro, e o livro só tem as contas
-            # tocadas: vê-se na base. Dentro do lock de escrita do nó, com a
-            # entrada anterior já aplicada, por isso dois pedidos não passam ambos.
+            # tocadas: vê-se na base. O número é uma das chaves da escrita
+            # (`_chaves`): dois pedidos com o mesmo número não validam ao mesmo
+            # tempo, e o segundo vê o primeiro já aplicado.
             if isinstance(operacao, CriarConta) and operacao.numero is not None:
                 if contas.procurar_por_numero(operacao.numero) is not None:
                     raise NumeroOcupado(f"o número {operacao.numero} já é de outra conta")
 
     def _ligacao(self):
         return _Ligacao(self._obter_conexao)
+
+
+def _chaves(operacao: Operacao) -> set[str]:
+    """O que a validação desta operação lê: as contas tocadas e, numa conta
+    nova, o número. Duas escritas sem chaves em comum validam ao mesmo tempo;
+    com uma em comum, a segunda espera que a primeira seja aplicada."""
+    chaves = {f"conta:{conta}" for conta in operacao.contas_tocadas()}
+    if isinstance(operacao, CriarConta) and operacao.numero is not None:
+        chaves.add(f"numero:{operacao.numero}")
+    return chaves
 
 
 class _Ligacao:

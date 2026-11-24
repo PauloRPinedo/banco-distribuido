@@ -69,8 +69,9 @@ class ArmazemDeLog(Protocol):
         entradas seriam cem esperas por `fsync`.
         """
 
-    def ler_desde(self, indice: int) -> list[EntradaDeLog]:
-        """As entradas com índice **maior** que `indice`, por ordem. 0 lê tudo."""
+    def ler_desde(self, indice: int, limite: int | None = None) -> list[EntradaDeLog]:
+        """As entradas com índice **maior** que `indice`, por ordem. 0 lê tudo.
+        Com `limite`, só as primeiras `limite`."""
 
     def ultimo_indice(self) -> int:
         """0 se o log estiver vazio."""

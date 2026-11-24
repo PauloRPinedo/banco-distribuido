@@ -45,8 +45,8 @@ class LogDeReplicacao:
         with self._lock:
             return self._indice_commit
 
-    def ler_desde(self, indice: int) -> list[EntradaDeLog]:
-        return self._armazem.ler_desde(indice)
+    def ler_desde(self, indice: int, limite: int | None = None) -> list[EntradaDeLog]:
+        return self._armazem.ler_desde(indice, limite)
 
     def epoch_em(self, indice: int) -> int:
         """O epoch da entrada nesse índice; 0 se não existir ou se for o zero.
@@ -86,16 +86,21 @@ class LogDeReplicacao:
     def acrescentar_do_lider(self, entradas: list[EntradaDeLog]) -> None:
         """Aceita um lote do líder, truncando o que diverge.
 
-        As entradas que já tenho iguais não se reescrevem: repetir um índice
-        chocaria com a chave primária do armazém. As que tenho **diferentes**
-        têm de sair antes, e é aí que a regra do `indice_commit` se aplica.
+        As entradas que já tenho iguais (mesmo índice, mesmo epoch) ficam: são
+        a mesma entrada. Só se apaga a partir da primeira **diferente**, e é aí
+        que a regra do `indice_commit` se aplica. Apagar também as iguais seria
+        um perigo: uma mensagem antiga e mais curta, chegada depois de uma mais
+        longa, apagaria entradas que esta réplica já confirmou ao líder.
         """
         if not entradas:
             return
         with self._lock:
-            primeira = entradas[0].indice
-            if primeira <= self._ultimo_indice:
-                self.truncar_divergentes(primeira)
+            for entrada in entradas:
+                if entrada.indice > self._ultimo_indice:
+                    break
+                if self._armazem.epoch_em(entrada.indice) != entrada.epoch:
+                    self.truncar_divergentes(entrada.indice)
+                    break
             novas = [e for e in entradas if e.indice > self._ultimo_indice]
             if not novas:
                 return

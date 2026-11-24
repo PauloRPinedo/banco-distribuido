@@ -141,7 +141,7 @@ Uma escrita que chegue a uma réplica dá `409` `nao_sou_primario`, com
 
 `GET /interno/estado` em cada nó: um só `primário`. Mata o primário
 (`docker compose kill no-x` em local; **Stop instance** na AWS). Mede até outro
-nó dizer `primário` com o `epoch` + 1. Em local mediu-se 1,23 s
+nó dizer `primário` com o `epoch` + 1. Em local mediu-se 1,30 s
 ([`provas/api/sessao.md`](../provas/api/sessao.md)).
 
 ## RF-10, RF-11, RF-12 e RNF-02 — Replicar antes de responder, seguir, voltar
@@ -180,5 +180,5 @@ painel precisam deles, e não mostram contas.
 |---|---|
 | RF-15, métricas | Não há rota de métricas |
 | RF-17, cliente de linha de comandos | Não há; usa-se `curl` ou o script de provas |
-| RNF-04 e RNF-05, débito e latência | Medidos, e **não se cumprem**: ~10 escritas/s (meta 500). `python3 provas/scripts/medir_desempenho.py` com o `docker compose` de pé; resultado em [`provas/desempenho/medicao.md`](../provas/desempenho/medicao.md) |
+| RNF-04 e RNF-05, débito e latência | Medidos: 87 escritas/s pelo balanceador com 32 clientes (meta 500, **não se cumpre**); p99 abaixo de 200 ms até 8 clientes. `python3 provas/scripts/medir_desempenho.py` com o `docker compose` de pé; resultado em [`provas/desempenho/medicao.md`](../provas/desempenho/medicao.md) |
 | Recuperação de senha | Retirada de propósito (ver acima) |

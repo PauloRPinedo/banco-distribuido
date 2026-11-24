@@ -44,11 +44,11 @@ falta estão em [`docs/MUDANCAS-E-PENDENTES.md`](docs/MUDANCAS-E-PENDENTES.md).
 **Provado com este código** ([`provas/api/sessao.md`](provas/api/sessao.md),
 23 de novembro de 2026): os 65 passos pela API certos, o primário morto com
 `docker compose kill` a meio de transferências concorrentes, **C assumiu em
-1,23 s**, nada confirmado se perdeu e as três bases ficaram com a mesma
+1,30 s**, nada confirmado se perdeu e as três bases ficaram com a mesma
 impressão digital. As capturas do painel e a medição anterior (1,23 s) são do
 Protótipo 2, em [`../prototipo-2/provas/`](../prototipo-2/provas/README.md).
 
-**299 testes do backend passam** contra um PostgreSQL a sério — entre eles, sete
+**306 testes do backend passam** contra um PostgreSQL a sério — entre eles, sete
 com três processos, três bases e `kill -9` do primário.
 
 ---
@@ -324,31 +324,32 @@ sequenceDiagram
 
     Cli->>Bal: POST /transferencias {de, para, valor, op_id}
     Bal->>A: reenvia ao primário em cache
-    Note over A: lock de escrita: uma escrita de cada vez
     A->>A: sou primário e vejo a maioria?
+    Note over A: reservar as chaves (as duas contas, o op_id); se outra escrita as tem, esperar por ela
     alt este op_id já foi aplicado
         A-->>Bal: a resposta guardada (o dinheiro não se move)
     else op_id novo
         A->>A: validar contra as tabelas (dono, saldo, moeda, prazo)
         A->>A: gravar a entrada no log_replicado (índice n, epoch e)
+        Note over A: uma ronda leva n e as outras escritas que chegaram entretanto (até m)
         par replicação
-            A->>B: POST /interno/replicar [entrada n]
+            A->>B: POST /interno/replicar [entradas até m]
             B->>B: grava no seu log
-            B-->>A: ok
+            B-->>A: ok, tenho até m
         and
-            A->>C: POST /interno/replicar [entrada n]
-            C-->>A: ok (ou não responde)
+            A->>C: POST /interno/replicar [entradas até m]
+            C-->>A: ok (ou não responde, ou responde depois)
         end
-        Note over A: 2 de 3 têm a entrada: confirmada
-        A->>A: indice_commit = n
-        A->>A: AplicadorPostgres.aplicar(n): contas + operação + ultimo_aplicado, numa transação
+        Note over A: a primeira réplica que confirma faz a maioria: confirmadas
+        A->>A: indice_commit = m
+        A->>A: AplicadorPostgres.aplicar_lote(..m): contas + operações + ultimo_aplicado, numa transação
         A-->>Bal: 200 com a resposta, guardada para repetições
     end
-    Bal-->>Cli: 200
-    A->>B: heartbeat seguinte (commit = n)
-    B->>B: aplica a entrada n às suas tabelas
-    A->>C: heartbeat seguinte (commit = n)
-    C->>C: aplica a entrada n às suas tabelas
+    Bal-->>Cli: 200 (o nó diz X-Primario-Pronto: sim)
+    A->>B: envio seguinte (commit = m)
+    B->>B: aplica até m às suas tabelas, noutra thread
+    A->>C: envio seguinte (commit = m)
+    C->>C: aplica até m às suas tabelas, noutra thread
 ```
 
 Se o primário já não o for, responde `409 nao_sou_primario` com o endereço do
@@ -713,11 +714,20 @@ eleição e o failover nos diagramas [4](#4-os-papéis-de-um-nó) e [5](#5-o-fai
   determinista (instante, ids, o sal do hash da senha) decide-se no primário e
   vai dentro da entrada.
 - **Recuperação.** `estado_do_no.ultimo_aplicado` avança na mesma transação que
-  aplica a entrada. Um nó que caia a meio volta e aplica o que estiver
+  aplica as entradas. Um nó que caia a meio volta e aplica o que estiver
   confirmado e por aplicar, antes de responder a quem quer que seja.
-- **Uma escrita de cada vez no primário**, da validação à aplicação: valida-se
-  sempre contra o estado que a escrita anterior deixou. O custo é o débito, que
-  fica limitado por uma ida e volta à maioria por operação.
+- **Escritas em grupo no primário.** Cada escrita reserva as chaves que toca
+  (as contas, o número de uma conta nova, o email, o `op_id`) e só valida
+  quando nenhuma outra escrita com essas chaves está a validar ou por aplicar:
+  valida-se sempre contra o estado que as anteriores deixaram, e escritas de
+  contas diferentes não esperam umas pelas outras. As que chegam juntas vão
+  na mesma ronda de replicação, que acaba quando a **primeira** réplica
+  confirma (com ela, há maioria), e aplicam-se numa só transação.
+- **As réplicas confirmam ao gravar.** Respondem ao primário logo que têm as
+  entradas no log, e aplicam-nas noutra thread. Cada uma recebe as mensagens
+  do primário pela ordem em que ele as manda, e a mensagem monta-se quando
+  sai: leva tudo o que lhe falta, sem fila a crescer se a réplica estiver em
+  baixo.
 - **As leituras vão todas ao primário** (o balanceador encarrega-se disso). As
   réplicas aplicam um heartbeat depois, e ler de uma delas podia devolver um
   saldo atrasado.
@@ -819,13 +829,13 @@ cd projeto-final
 python3 -m venv .venv
 .venv/bin/pip install -r backend/requisitos.txt -r balanceador/requisitos.txt
 
-# sem instalar nada: 189 correm, 110 saltam-se com o motivo escrito
+# sem instalar nada: 193 correm, 113 saltam-se com o motivo escrito
 (cd backend && python3 -m unittest discover -s tests)
 
-# com a pilha mas sem base: 199 correm, os 100 que precisam de base saltam-se
+# com a pilha mas sem base: 203 correm, os 103 que precisam de base saltam-se
 (cd backend && ../.venv/bin/python -m unittest discover -s tests)
 
-# com uma base descartável, os 299 — o nome tem de conter "teste"; o teste do cluster
+# com uma base descartável, os 306 — o nome tem de conter "teste"; o teste do cluster
 # cria ao lado as bases <nome>_a, _b e _c
 docker run -d --name banco-teste -p 55432:5432 -e POSTGRES_DB=banco_teste \
   -e POSTGRES_USER=banco -e POSTGRES_PASSWORD=banco postgres:16-alpine
@@ -833,7 +843,7 @@ docker run -d --name banco-teste -p 55432:5432 -e POSTGRES_DB=banco_teste \
   ../.venv/bin/python -m unittest discover -s tests)
 docker rm -f banco-teste
 
-# 13 do balanceador
+# 15 do balanceador
 (cd balanceador && ../.venv/bin/python -m unittest discover -s tests)
 
 # o painel compila
@@ -870,7 +880,7 @@ esquecido.
 
 - [x] Eleição por voto com `epoch`; um só primário; réplicas sabem quem manda
 - [x] Cada escrita confirmada pela maioria antes de responder (RF-10)
-- [x] Failover automático em menos de 2 s (RNF-03): 1,23 s na prova guardada
+- [x] Failover automático em menos de 2 s (RNF-03): 1,30 s na prova guardada
 - [x] Nada confirmado se perde; o total não muda com o primário a morrer a meio
       (RNF-01, RNF-02)
 - [x] Repetir o `op_id` depois de um failover não duplica (RF-13)
@@ -939,16 +949,17 @@ esquecido.
       sabe porquê; os testes do cluster guardam agora o estado e o registo de
       cada nó quando falham. Com a máquina carregada, falha às vezes por
       timeouts (usa eleições de 150–300 ms).
-- [ ] **RNF-04 e RNF-05 não se cumprem.** Medido no portátil, com a pilha
-      toda no `docker compose`: cerca de **10 escritas por segundo**, qualquer
-      que seja o número de clientes (a meta é 500), e p99 de 160 ms com um só
-      cliente direto ao primário, que sobe com a fila. As leituras chegam a 140
-      por segundo diretas ao primário e a 47 pelo balanceador
-      ([`provas/desempenho/medicao.md`](provas/desempenho/medicao.md)). Há duas
-      causas, ambas no desenho e não na máquina: as escritas fazem-se uma de
-      cada vez, cada uma com a sua ronda de replicação, que espera pelas duas
-      réplicas e não só pela primeira; e o balanceador pergunta ao primário
-      se ainda o é antes de cada pedido.
+- [ ] **RNF-04 não se cumpre; RNF-05 só até 8 clientes.** Medido no
+      portátil, com a pilha toda no `docker compose`: **87 escritas por
+      segundo** pelo balanceador e 110 diretas ao primário, com 32 clientes (a
+      meta é 500); p99 de 50 ms com um cliente, abaixo de 200 ms até 8
+      clientes, 612 ms com 32. As leituras chegam a 208 por segundo pelo
+      balanceador e 317 diretas
+      ([`provas/desempenho/medicao.md`](provas/desempenho/medicao.md)). O
+      limite agora é o processo Python do primário: ~10–14 ms de CPU por
+      escrita (FastAPI e ~15 idas à base), num só núcleo por causa do GIL.
+      Antes destas correções eram ~10 escritas/s (secção 9 de
+      `docs/MUDANCAS-E-PENDENTES.md`).
 - [ ] O `frontend/vercel.json` aponta para uma função Lambda de uma implantação
       anterior, e não para um balanceador implantado a partir deste código.
 
@@ -959,7 +970,6 @@ esquecido.
 | # | Proposta | Porquê |
 |---|---|---|
 | 1 | Rodar as senhas e a `SECRET_KEY`, e fazer *force-push* do histórico limpo | Os segredos antigos estão públicos no GitHub |
-| 2 | Agrupar as escritas que chegam juntas numa só ronda de replicação, e confirmar com a primeira réplica que responde | As escritas não passam de ~10/s porque vão uma a uma (RNF-04) |
-| 3 | No balanceador, confiar no primário em cache e só voltar a perguntar quando ele recusa ou não responde | Hoje cada pedido custa uma ida e volta a mais (~40 ms) |
-| 4 | Implantar os três nós na AWS (um por zona) com este código, e repetir as provas lá | O plano está em `docs/PROPOSTA-ARQUITETURA-AWS.md` |
-| 5 | Ligar o Lambda à VPC e fechar a porta 8001 ao *security group* do balanceador | Hoje a API de cada nó está na Internet |
+| 2 | Menos idas à base por escrita (o fim do log em memória; deduplicar e validar com a mesma ligação) e separar a API HTTP do nó em vários processos | O limite das escritas (~100/s) é a CPU do processo Python do primário (RNF-04) |
+| 3 | Implantar os três nós na AWS (um por zona) com este código, e repetir as provas lá | O plano está em `docs/PROPOSTA-ARQUITETURA-AWS.md` |
+| 4 | Ligar o Lambda à VPC e fechar a porta 8001 ao *security group* do balanceador | Hoje a API de cada nó está na Internet |

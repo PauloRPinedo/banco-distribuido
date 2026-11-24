@@ -254,21 +254,63 @@ de cada vez (cada uma segura o lock de escrita durante a sua ronda de
 replicação) e a ronda espera pelas duas réplicas, não só pela primeira. Com
 mais clientes só cresce a fila, e a latência com ela. O balanceador acrescenta
 ~40 ms a cada pedido porque pergunta ao primário se ainda o é antes de lho
-enviar. As duas correções estão nos «Próximos passos» do README; nenhuma se
-fez agora.
+enviar. As duas correções fizeram-se a seguir (secção 9).
+
+### 9. Os dois gargalos do desempenho (23 de novembro)
+
+Medido antes de mudar, com o tempo de cada fase no primário (instrumentação
+temporária, já retirada) e um *profiler*. Uma escrita esperava ~310 ms com 32
+clientes: a ronda de replicação demorava ~113 ms porque a réplica aplicava o
+lote anterior antes de responder; aplicar no primário custava ~5,7 ms por
+entrada, cada uma na sua transação; e abrir uma ligação à base custava
+11,6 ms, quatro ou cinco vezes por escrita. Mudou:
+
+| Onde | O quê |
+|---|---|
+| `cluster/no.py` | Escritas em grupo: cada escrita reserva as chaves que toca (contas, número da conta nova, email, `op_id`) e valida fora do lock; só gravar no log é um de cada vez. As que chegam juntas vão na mesma ronda e aplicam-se numa transação. As réplicas respondem ao gravar e aplicam noutra thread |
+| `cluster/replicacao.py` | A ronda acaba quando a **primeira** réplica confirma. Um canal por réplica, com a mensagem montada à saída (leva tudo o que falta; sem fila a crescer com uma réplica em baixo) e o ponto até onde cada réplica confirmou (o `matchIndex` do Raft) |
+| `cluster/log_de_replicacao.py` | Uma réplica só apaga a partir da primeira entrada **diferente**: uma mensagem antiga e mais curta, chegada tarde, já não apaga entradas confirmadas ao líder |
+| `cluster/cliente_interno.py` | Ligações HTTP entre nós mantidas abertas |
+| `repositorio/conexao.py` | *Pool* de ligações: `close()` desfaz o que ficou por confirmar e devolve a ligação |
+| `servico/aplicador.py` | `aplicar_lote`: um lote numa transação, com um *savepoint* por entrada |
+| `api/app.py` e o balanceador | Cada resposta de um nó diz `X-Primario-Pronto`; o balanceador confia no primário em cache e só volta a procurar quando uma resposta diz `nao`, um pedido falha ou recebe 409/503. Um `httpx.Client` partilhado |
+
+Resultado, na mesma máquina ([`provas/desempenho/medicao.md`](../provas/desempenho/medicao.md)):
+
+| | Antes | Depois |
+|---|---:|---:|
+| Escritas, pelo balanceador, 32 clientes | 2/s (66 erros) | **87/s** (0 erros) |
+| Escritas, direto ao primário, melhor | 10/s | **110/s** |
+| Escritas, p99 com 1 cliente | 260 ms | **50 ms** |
+| Leituras, pelo balanceador, melhor | 47/s | **208/s** |
+| Leituras, p99 com 1 cliente, pelo balanceador | 109 ms | **19 ms** |
+
+RNF-05 (p99 < 200 ms) cumpre-se até 8 clientes; RNF-04 (500/s) continua
+longe. O limite agora é outro: o processo Python do primário gasta ~10–14 ms
+de CPU por escrita (medido com um só cliente, 14 ms; com 32, 9 ms), e com o
+GIL só usa um núcleo. Passar disso pede menos idas à base por escrita ou
+separar a API HTTP do nó em vários processos.
+
+Testes novos: escritas de contas diferentes partilham rondas; duas escritas da
+mesma conta não validam contra o mesmo saldo (falha com o bloqueio por chaves
+desligado); o mesmo `op_id` em paralelo aplica-se uma vez; a regra de
+truncar da réplica; o *pool* devolve as ligações limpas; o balanceador não
+pergunta antes de cada pedido e segue um primário que deixou de o ser. O
+`teste_cluster.py` passou 30 de 30 seguidas depois disto.
 
 ## Verificação
 
 | O quê | Resultado |
 |---|---|
-| Backend, com um Postgres descartável | **299 testes OK**, incluídos os 7 com três processos e `kill -9` do primário |
-| Backend sem base / sem dependências | 199 / 189 correm, os outros saltam-se com o motivo |
-| Balanceador | 13 OK |
+| Backend, com um Postgres descartável | **306 testes OK**, incluídos os 7 com três processos e `kill -9` do primário |
+| Backend sem base / sem dependências | 203 / 193 correm, os outros saltam-se com o motivo |
+| Balanceador | 15 OK |
 | Painel | `npm run build` OK; percurso num Chromium a 390 × 844 contra o `docker compose`: registo, abrir conta, depositar, transferir pelo número (com o titular), extrato, auditoria, cluster, recarregar numa rota interna. Depois, a página responsiva a 360, 390, 600, 820, 1024, 1180, 1440 e 1920px: entrar, início com três contas, transferir, extrato, auditoria, cluster e abrir conta, sem deslocamento horizontal em nenhuma. Sem erros na consola |
-| `docker compose up` + `provas/scripts/operacoes_api.py` | **65 de 65 passos**; C assumiu **1,23 s** depois do `kill` do primário; impressão digital igual nas três bases ([`provas/api/sessao.md`](../provas/api/sessao.md)) |
+| `docker compose up` + `provas/scripts/operacoes_api.py` | **65 de 65 passos**, com volumes novos; C assumiu **1,30 s** depois do `kill` do primário; impressão digital igual nas três bases ([`provas/api/sessao.md`](../provas/api/sessao.md)) |
 | Ao vivo, pelo balanceador | replicação forjada → 403; `/interno/log` sem chave → 403; taxa sem chave de operador → 403 |
 | `teste_cluster.py` em ciclo | 40 de 40 com a máquina parada (secção 8) |
-| RNF-04/05 | Medidos: ~10 escritas/s, não se cumprem (secção 8) |
+| RNF-04/05 | 87 escritas/s pelo balanceador (eram ~10); p99 < 200 ms até 8 clientes (secção 9) |
+| `teste_cluster.py` depois da secção 9 | 30 de 30 |
 | Segredos | 0 commits e 0 ficheiros os contêm |
 | `prototipo-2/` | os seus testes continuam a passar (o único ficheiro mudado foi a proposta, com os hashes novos) |
 
@@ -341,8 +383,9 @@ fez agora.
       sozinha: o primário reconcilia a cada 30 s (secção 8).
 - [x] O `teste_cluster.py` intermitente: eram dois problemas, um dos testes e
       um do sistema, ambos corrigidos (secção 8).
-- [ ] **RNF-04 e RNF-05 não se cumprem**: ~10 escritas por segundo (meta 500)
-      e p99 acima de 200 ms a partir de 2 clientes (secção 8).
+- [ ] **RNF-04 não se cumpre**: 87 escritas por segundo pelo balanceador
+      (meta 500). RNF-05 cumpre-se até 8 clientes. O limite é a CPU do
+      processo Python do primário (secção 9).
 - [ ] Não há papéis de utilizador, de propósito: a chave de operador é um
       segredo partilhado, não uma pessoa; o *tick* de juros e a reconciliação
       correm com qualquer sessão (são idempotentes e só fazem o que já é devido).

@@ -13,7 +13,8 @@ import threading
 import unittest
 
 from banco.cluster.erros import NaoSouPrimario, SemQuorum, SomenteLeitura
-from banco.dominio.operacoes import CriarConta, Deposito, Transferencia
+from banco.dominio.erros import SaldoInsuficiente
+from banco.dominio.operacoes import CriarConta, Deposito, Saque, Transferencia
 from tests.cluster_em_memoria import ClusterEmMemoria
 
 
@@ -266,3 +267,89 @@ class TesteParticao(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TesteEscritasEmGrupo(Base):
+    """Validar é um de cada vez; replicar não. As escritas que chegam juntas
+    vão na mesma ronda, e as que tocam a mesma conta esperam umas pelas outras."""
+
+    def contar_rondas(self) -> list[int]:
+        rondas = []
+        original = self.primario.replicador.replicar_lote
+
+        def contada(entradas, prazo_ms):
+            rondas.append(len(entradas))
+            return original(entradas, prazo_ms)
+
+        self.primario.replicador.replicar_lote = contada
+        return rondas
+
+    def em_paralelo(self, trabalhos) -> list:
+        resultados = [None] * len(trabalhos)
+        comecar = threading.Barrier(len(trabalhos))
+
+        def correr(i, trabalho):
+            comecar.wait()
+            try:
+                resultados[i] = trabalho()
+            except Exception as erro:  # noqa: BLE001
+                resultados[i] = erro
+
+        fios = [threading.Thread(target=correr, args=(i, t)) for i, t in enumerate(trabalhos)]
+        for fio in fios:
+            fio.start()
+        for fio in fios:
+            fio.join(timeout=10)
+        return resultados
+
+    def teste_escritas_de_contas_diferentes_partilham_rondas(self):
+        contas = [f"c{i}" for i in range(12)]
+        for conta in contas:
+            self.primario.executar(f"criar-{conta}", CriarConta(conta, 0),
+                                   chaves={f"conta:{conta}"})
+        rondas = self.contar_rondas()
+
+        resultados = self.em_paralelo([
+            (lambda c=c: self.primario.executar(f"dep-{c}", Deposito(c, 100),
+                                                chaves={f"conta:{c}"}))
+            for c in contas])
+
+        self.assertFalse([r for r in resultados if isinstance(r, Exception)], resultados)
+        self.assertEqual(sum(rondas), len(contas))
+        self.assertLess(len(rondas), len(contas), f"lotes: {rondas}")
+        self.assertTrue(self.em_dia())
+        for no in self.cluster.nos:
+            for conta in contas:
+                self.assertEqual(self.cluster.aplicadores[no.id].saldo(conta), 100)
+
+    def teste_duas_escritas_da_mesma_conta_nao_validam_contra_o_mesmo_saldo(self):
+        # Alice tem 100,00: dá para um saque de 60,00, não para dois. A
+        # validação lê o estado do primário, como a do serviço lê a base.
+        livro = self.cluster.aplicadores[self.primario.id].livro
+        saque = Saque("alice", 6_000)
+
+        def sacar(i):
+            return self.primario.executar(
+                f"saque-{i}", saque, verificar=lambda instante: saque.validar(livro, instante),
+                chaves={"conta:alice"})
+
+        resultados = self.em_paralelo([(lambda i=i: sacar(i)) for i in range(2)])
+
+        self.assertTrue(self.em_dia())
+        self.assertEqual(set(self.saldos("alice").values()), {4_000})
+        # A segunda foi recusada na validação, antes do log: nunca se grava o
+        # que vai ser recusado.
+        self.assertEqual(len([r for r in resultados if isinstance(r, SaldoInsuficiente)]), 1,
+                         resultados)
+        saques = [e for e in self.primario.log.ler_desde(0) if e.op_id.startswith("saque-")]
+        self.assertEqual(len(saques), 1)
+
+    def teste_o_mesmo_op_id_ao_mesmo_tempo_aplica_se_uma_vez(self):
+        resultados = self.em_paralelo([
+            (lambda: self.primario.executar("dep-repetido", Deposito("bob", 500),
+                                            chaves={"conta:bob"}))
+            for _ in range(4)])
+
+        self.assertFalse([r for r in resultados if isinstance(r, Exception)], resultados)
+        self.assertTrue(self.em_dia())
+        self.assertEqual(set(self.saldos("bob").values()), {500})

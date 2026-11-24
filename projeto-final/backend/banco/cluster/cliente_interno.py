@@ -11,13 +11,20 @@ exceção pelo caminho da replicação, o primário morria a tentar falar com um
 morto em vez de contar os votos que já tem.
 """
 
+import http.client
 import json
-import urllib.error
-import urllib.request
+import threading
+import urllib.parse
 from dataclasses import dataclass
 
 from banco.autenticacao.chaves import CABECALHO_CLUSTER, chave_do_cluster
 from banco.cluster.configuracao import NoDoCluster
+
+# As ligações abertas aos pares, por thread: abrir uma ligação nova (e
+# resolver o nome do par) a cada envio era um dos custos de cada escrita. Os
+# envios de replicação saem sempre da mesma thread por par, por isso cada
+# ligação fica aberta enquanto o par a mantiver.
+_local = threading.local()
 
 
 @dataclass(frozen=True)
@@ -42,24 +49,57 @@ def pedir_ao_no(no: NoDoCluster, caminho: str, corpo: dict | None = None,
     cliente.
     """
     dados = json.dumps(corpo).encode("utf-8") if corpo is not None else None
-    pedido = urllib.request.Request(
-        no.url + caminho, data=dados, method=metodo,
-        headers={"Content-Type": "application/json",
-                 CABECALHO_CLUSTER: chave_do_cluster()})
-    try:
-        with urllib.request.urlopen(pedido, timeout=prazo_ms / 1000) as resposta:
-            return Resposta(True, resposta.status, json.loads(resposta.read()))
-    except urllib.error.HTTPError as falha:
-        # Respondeu, e disse que não. Isso conta: um `409 epoch_velho` é
-        # informação de protocolo, não uma falha de rede.
+    cabecalhos = {"Content-Type": "application/json",
+                  CABECALHO_CLUSTER: chave_do_cluster()}
+    url = urllib.parse.urlsplit(no.url)
+    for tentativa in (1, 2):
+        ligacao, reaproveitada = _ligacao(url.hostname, url.port or 80, prazo_ms / 1000)
         try:
-            lido = json.loads(falha.read())
-        except (json.JSONDecodeError, ValueError, OSError):
-            lido = {}
-        return Resposta(True, falha.code, lido)
-    except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as falha:
-        return Resposta(False, motivo=str(getattr(falha, "reason", falha)))
-    except json.JSONDecodeError as falha:
-        # Respondeu com algo que não é JSON: para o protocolo vale tanto como
-        # não ter respondido, mas o motivo distingue-se no log.
-        return Resposta(False, motivo=f"resposta ilegível: {falha}")
+            ligacao.request(metodo, caminho, body=dados, headers=cabecalhos)
+            resposta = ligacao.getresponse()
+            conteudo = resposta.read()
+            estado = resposta.status
+        except (http.client.RemoteDisconnected, BrokenPipeError,
+                ConnectionResetError) as falha:
+            _esquecer(url.hostname, url.port or 80)
+            # Uma ligação guardada que o par fechou entretanto: repete-se uma
+            # vez com uma nova. Os RPCs do protocolo podem repetir-se.
+            if reaproveitada and tentativa == 1:
+                continue
+            return Resposta(False, motivo=str(falha))
+        except (http.client.HTTPException, TimeoutError, OSError) as falha:
+            _esquecer(url.hostname, url.port or 80)
+            return Resposta(False, motivo=str(falha))
+        try:
+            lido = json.loads(conteudo) if conteudo else {}
+        except (json.JSONDecodeError, ValueError) as falha:
+            # Respondeu com algo que não é JSON: para o protocolo vale tanto
+            # como não ter respondido, mas o motivo distingue-se no log.
+            return Resposta(False, motivo=f"resposta ilegível: {falha}")
+        # Respondeu, mesmo que a dizer que não: um `409 epoch_velho` é
+        # informação de protocolo, não uma falha de rede.
+        return Resposta(True, estado, lido)
+    return Resposta(False, motivo="sem ligação")
+
+
+def _ligacao(anfitriao: str, porta: int, prazo_s: float):
+    """(ligação, reaproveitada) a este par, nesta thread."""
+    ligacoes = getattr(_local, "ligacoes", None)
+    if ligacoes is None:
+        ligacoes = _local.ligacoes = {}
+    ligacao = ligacoes.get((anfitriao, porta))
+    if ligacao is not None:
+        ligacao.timeout = prazo_s
+        if ligacao.sock is not None:
+            ligacao.sock.settimeout(prazo_s)
+        return ligacao, True
+    ligacao = http.client.HTTPConnection(anfitriao, porta, timeout=prazo_s)
+    ligacoes[(anfitriao, porta)] = ligacao
+    return ligacao, False
+
+
+def _esquecer(anfitriao: str, porta: int) -> None:
+    ligacoes = getattr(_local, "ligacoes", {})
+    ligacao = ligacoes.pop((anfitriao, porta), None)
+    if ligacao is not None:
+        ligacao.close()

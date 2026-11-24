@@ -12,13 +12,18 @@ errados a uma réplica, sem ninguém dar por isso.
 
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import (FIRST_COMPLETED, Future, ThreadPoolExecutor,
+                                wait)
 
 from banco.cluster.configuracao import ConfiguracaoDoCluster
 from banco.cluster.eleicao import Eleicao
 from banco.cluster.log_de_replicacao import LogDeReplicacao
 from banco.cluster.cliente_interno import pedir_ao_no
 from banco.cluster.entrada import EntradaDeLog
+
+# Quantas entradas leva um envio a um par, no máximo. Um nó que esteve muito
+# tempo em baixo recebe o que lhe falta em vários.
+MAXIMO_POR_ENVIO = 500
 
 
 class Replicador:
@@ -42,12 +47,17 @@ class Replicador:
         self.falhas = falhas
 
         self._pares = configuracao.pares_de(id_do_no)
-        # Um trabalhador por par: nunca são mais do que dois neste projeto, e um
-        # pool sem limite deixaria um nó lento acumular threads durante uma
-        # partição de rede.
+        # Os pedidos de voto: um trabalhador por par, à parte da replicação,
+        # para uma eleição nunca esperar atrás de um envio a um nó morto.
         self._executor = ThreadPoolExecutor(
             max_workers=max(1, len(self._pares)),
-            thread_name_prefix=f"replicar-{id_do_no}")
+            thread_name_prefix=f"votar-{id_do_no}")
+        # A replicação: um canal por par, com um só trabalhador. Os envios a um
+        # par saem por ordem, e um par lento só atrasa o seu próprio canal.
+        self._canais = {par.id: _Canal(par, id_do_no) for par in self._pares}
+        # Até onde cada par tem o log igual ao deste nó (o `matchIndex` do
+        # Raft). Esquece-se a cada mandato novo.
+        self._confirmados: dict[str, int] = {}
         self._parar = threading.Event()
         self._thread: threading.Thread | None = None
         self._ultimo_contacto_com_maioria = time.monotonic()
@@ -67,6 +77,8 @@ class Replicador:
             self._thread.join(timeout=2)
             self._thread = None
         self._executor.shutdown(wait=False)
+        for canal in self._canais.values():
+            canal.fechar()
 
     # -------------------------------------------------------------- escrita
 
@@ -78,83 +90,106 @@ class Replicador:
         """
         return self._difundir([entrada], prazo_ms)
 
+    def replicar_lote(self, entradas: list[EntradaDeLog], prazo_ms: int) -> bool:
+        """Várias entradas seguidas numa só ronda: é o que junta as escritas
+        que chegam ao mesmo tempo. A maioria confirma o lote inteiro."""
+        return self._difundir(entradas, prazo_ms)
+
     def bater_coracao(self) -> None:
         """Um heartbeat é o mesmo RPC sem entradas."""
         self._difundir([], self.configuracao.timeout_replicacao_ms)
 
     def _difundir(self, entradas: list[EntradaDeLog], prazo_ms: int) -> bool:
+        """Põe cada par em dia até à última de `entradas` e espera pela maioria.
+
+        Sem entradas é um heartbeat: basta que a maioria responda que sim.
+        """
         if not self._pares:
             # Nó sozinho no cluster: a maioria de 1 é ele próprio.
             self._ultimo_contacto_com_maioria = time.monotonic()
             return True
 
-        indice_anterior = (entradas[0].indice - 1 if entradas
-                           else self.log.ultimo_indice)
-        epoch_anterior = self.log.epoch_em(indice_anterior)
-        corpo = {"epoch": self.eleicao.epoch, "id_lider": self.id,
-                 "indice_anterior": indice_anterior,
-                 "epoch_anterior": epoch_anterior,
-                 "entradas": [_entrada_em_json(e) for e in entradas],
-                 "commit_lider": self.log.indice_commit}
-
-        try:
-            futuros = [self._executor.submit(self._enviar, par, corpo, prazo_ms)
-                       for par in self._pares]
-        except RuntimeError:
-            # O nó está a ser desligado a meio de uma escrita. Não há maioria
-            # nenhuma a esperar, e quem chamou recebe `sem_quorum` — que é a
-            # verdade. Deixar o RuntimeError subir daria um 500 "erro interno"
-            # quando o que houve foi um nó a fechar ordenadamente.
-            return False
-        # O primário já se conta a si próprio.
+        alvo = entradas[-1].indice if entradas else 0
+        futuros = [canal.enviar(lambda par: self._sincronizar(par, prazo_ms))
+                   for canal in self._canais.values()]
+        futuros = [futuro for futuro in futuros if futuro is not None]
+        # O primário já se conta a si próprio. Responde-se logo que a maioria
+        # confirma: esperar pelo par mais lento atrasaria todas as escritas
+        # pelo nó mais lento do cluster, que é o contrário de ter um quórum.
         confirmacoes = 1
-        for futuro in futuros:
-            try:
-                if futuro.result(timeout=prazo_ms / 1000 + 0.5):
+        prazo = time.monotonic() + prazo_ms / 1000 + 0.5
+        por_ver = set(futuros)
+        while confirmacoes < self.configuracao.maioria and por_ver:
+            restante = prazo - time.monotonic()
+            if restante <= 0:
+                break
+            feitos, por_ver = wait(por_ver, timeout=restante, return_when=FIRST_COMPLETED)
+            for futuro in feitos:
+                try:
+                    confirmado = futuro.result()
+                except Exception:  # noqa: BLE001
+                    # Um par que falha não é um erro do primário: é um voto a
+                    # menos. Deixar a exceção subir mataria a escrita por causa
+                    # de um nó em baixo, que é o que o quórum existe para evitar.
+                    continue
+                if confirmado is not None and confirmado >= alvo:
                     confirmacoes += 1
-            except Exception:  # noqa: BLE001
-                # Um par que falha não é um erro do primário: é um voto a menos.
-                # Deixar a exceção subir mataria a escrita por causa de um nó em
-                # baixo, que é exatamente o que o quórum existe para evitar.
-                continue
 
         alcancou = confirmacoes >= self.configuracao.maioria
         if alcancou:
             self._ultimo_contacto_com_maioria = time.monotonic()
         return alcancou
 
-    def _enviar(self, par, corpo: dict, prazo_ms: int) -> bool:
-        if self.falhas is not None and not self.falhas.fala_com(par.id):
-            return False
-        resposta = pedir_ao_no(par, "/interno/replicar", corpo, prazo_ms)
-        if not resposta.respondeu or not resposta.corpo:
-            return False
-        if resposta.corpo.get("epoch", 0) > self.eleicao.epoch:
-            # Fencing: vi um epoch maior, já não mando.
-            self.eleicao.ver_epoch(resposta.corpo["epoch"])
-            return False
-        if resposta.corpo.get("ok"):
-            return True
-        # Log divergente ou com um buraco: a réplica diz onde está, e reenvia-se
-        # daí. É a simplificação face ao Raft.
-        em_falta = resposta.corpo.get("meu_ultimo_indice")
-        if em_falta is None:
-            return False
-        return self._pôr_em_dia(par, em_falta, prazo_ms)
+    def _sincronizar(self, par, prazo_ms: int) -> int | None:
+        """Manda ao par o que lhe falta; devolve até onde ele confirmou, ou None.
 
-    def _pôr_em_dia(self, par, ultimo_indice_do_par: int, prazo_ms: int) -> bool:
-        atrasadas = self.log.ler_desde(ultimo_indice_do_par)
-        if not atrasadas:
-            return False
-        anterior = ultimo_indice_do_par
-        corpo = {"epoch": self.eleicao.epoch, "id_lider": self.id,
-                 "indice_anterior": anterior,
-                 "epoch_anterior": self.log.epoch_em(anterior),
-                 "entradas": [_entrada_em_json(e) for e in atrasadas],
-                 "commit_lider": self.log.indice_commit}
-        resposta = pedir_ao_no(par, "/interno/replicar", corpo, prazo_ms)
-        return bool(resposta.respondeu and resposta.corpo
-                    and resposta.corpo.get("ok"))
+        Corre no canal do par, e monta a mensagem **agora**, não quando foi
+        posta na fila: leva tudo o que o log tem neste instante. Por isso uma
+        ronda que encontra um envio à espera junta-se a ele em vez de mandar
+        outro.
+
+        `_confirmados[par]` é até onde o par já tem o log igual ao deste nó.
+        Sem esse número (acabado de ganhar a eleição), parte-se do commit; se o
+        par diz que não encaixa, diz também onde está, e repete-se daí.
+        """
+        if self.falhas is not None and not self.falhas.fala_com(par.id):
+            return None
+        fim = time.monotonic() + prazo_ms / 1000
+        alvo = self.log.ultimo_indice
+        for _ in range(8):
+            restante_ms = int((fim - time.monotonic()) * 1000)
+            if restante_ms <= 0:
+                return None
+            anterior = self._confirmados.get(par.id)
+            if anterior is None:
+                anterior = self.log.indice_commit
+            entradas = self.log.ler_desde(anterior, MAXIMO_POR_ENVIO)
+            corpo = {"epoch": self.eleicao.epoch, "id_lider": self.id,
+                     "indice_anterior": anterior,
+                     "epoch_anterior": self.log.epoch_em(anterior),
+                     "entradas": [_entrada_em_json(e) for e in entradas],
+                     "commit_lider": self.log.indice_commit}
+            resposta = pedir_ao_no(par, "/interno/replicar", corpo, restante_ms)
+            if not resposta.respondeu or not resposta.corpo:
+                return None
+            if resposta.corpo.get("epoch", 0) > self.eleicao.epoch:
+                # Fencing: vi um epoch maior, já não mando.
+                self.eleicao.ver_epoch(resposta.corpo["epoch"])
+                return None
+            if resposta.corpo.get("ok"):
+                confirmado = anterior + len(entradas)
+                self._confirmados[par.id] = confirmado
+                if confirmado >= alvo or not entradas:
+                    return confirmado
+                continue   # havia mais do que cabe num envio
+            # Log divergente ou com um buraco: a réplica diz até onde tem a
+            # certeza (o seu commit), e reenvia-se daí. É a simplificação face
+            # ao Raft, que recua uma entrada de cada vez.
+            onde_esta = resposta.corpo.get("meu_ultimo_indice")
+            if onde_esta is None or onde_esta >= anterior:
+                return None
+            self._confirmados[par.id] = onde_esta
+        return None
 
     # -------------------------------------------------------------- leitura
 
@@ -217,6 +252,7 @@ class Replicador:
 
         if votos >= self.configuracao.maioria and self.eleicao.assumir(pedido.epoch):
             self._ultimo_contacto_com_maioria = time.monotonic()
+            self._confirmados = {}
             if self._ao_assumir is not None:
                 self._ao_assumir()
             # Heartbeat imediato, para calar candidatos concorrentes.
@@ -232,6 +268,48 @@ class Replicador:
             self.eleicao.ver_epoch(resposta.corpo["epoch"])
             return False
         return bool(resposta.corpo.get("concedido"))
+
+
+class _Canal:
+    """Os envios de replicação a um par: um de cada vez, e no máximo um à espera.
+
+    Um de cada vez porque a réplica deve receber as mensagens deste líder pela
+    ordem em que ele as manda. No máximo um à espera porque a mensagem só se
+    monta quando sai (`_sincronizar`): quem chega com um envio já à espera
+    junta-se a ele, e esse envio leva também o que essa ronda queria mandar.
+    Com um par em baixo, a fila nunca cresce.
+    """
+
+    def __init__(self, par, id_do_no: str) -> None:
+        self.par = par
+        self._executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix=f"replicar-{id_do_no}-{par.id}")
+        self._lock = threading.Lock()
+        self._a_espera: Future | None = None
+
+    def enviar(self, funcao) -> Future | None:
+        """O futuro do envio que vai levar o que está no log agora."""
+        with self._lock:
+            if self._a_espera is not None:
+                return self._a_espera
+            try:
+                futuro = self._executor.submit(self._correr, funcao)
+            except RuntimeError:
+                # O nó está a ser desligado: este par não conta, e quem chamou
+                # recebe `sem_quorum` em vez de um 500.
+                return None
+            self._a_espera = futuro
+            return futuro
+
+    def _correr(self, funcao):
+        # A partir daqui o envio já não está à espera: quem chegar depois
+        # precisa de outro, porque este pode já ter lido o log.
+        with self._lock:
+            self._a_espera = None
+        return funcao(self.par)
+
+    def fechar(self) -> None:
+        self._executor.shutdown(wait=False)
 
 
 def _entrada_em_json(entrada: EntradaDeLog) -> dict:

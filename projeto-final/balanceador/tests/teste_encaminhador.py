@@ -45,13 +45,15 @@ class RedeFalsa:
             return httpx.Response(200, json={"no": no[-1].upper(), "papel": papel,
                                              "epoch": self.epoch,
                                              "ultimo_aplicado": self.aplicados.get(no, 0)})
+        # Como os nós a sério, cada resposta diz se vem de um primário pronto.
+        pronto = {"X-Primario-Pronto": "sim" if no == self.primario else "nao"}
         if pedido.method == "GET":
-            return httpx.Response(200, json={"atendido_por": no})
+            return httpx.Response(200, json={"atendido_por": no}, headers=pronto)
         if no != self.primario:
             return httpx.Response(409, json={
                 "erro": "nao_sou_primario",
-                "primario_provavel": f"http://{self.primario}:8001"})
-        return httpx.Response(200, json={"atendido_por": no})
+                "primario_provavel": f"http://{self.primario}:8001"}, headers=pronto)
+        return httpx.Response(200, json={"atendido_por": no}, headers=pronto)
 
 
 class Base(unittest.TestCase):
@@ -59,12 +61,8 @@ class Base(unittest.TestCase):
     def setUp(self) -> None:
         self.rede = RedeFalsa("no-b")
         cliente = httpx.Client(transport=httpx.MockTransport(lambda pedido: self.rede.responder(pedido)))
-        originais = (httpx.get, httpx.request)
-        httpx.get = lambda url, timeout: cliente.get(url)
-        httpx.request = lambda metodo, url, timeout, **kw: cliente.request(metodo, url, **kw)
-        self.addCleanup(lambda: (setattr(httpx, "get", originais[0]),
-                                 setattr(httpx, "request", originais[1])))
-        self.encaminhador = Encaminhador(NOS, _url_base)
+        self.addCleanup(cliente.close)
+        self.encaminhador = Encaminhador(NOS, _url_base, cliente=cliente)
 
 
 class TesteEncaminhador(Base):
@@ -85,6 +83,27 @@ class TesteEncaminhador(Base):
         resposta = self.encaminhador.reenviar("POST", "/transferencias")
 
         self.assertEqual(resposta.json()["atendido_por"], "no-c")
+
+    def teste_nao_pergunta_ao_primario_antes_de_cada_pedido(self):
+        self.encaminhador.encontrar_primario()
+        self.rede.pedidos.clear()
+
+        for _ in range(5):
+            self.encaminhador.reenviar("GET", "/contas/alice")
+            self.encaminhador.reenviar("POST", "/transferencias")
+
+        self.assertFalse([p for p in self.rede.pedidos if p.endswith("/interno/estado")],
+                         self.rede.pedidos)
+        self.assertEqual(len(self.rede.pedidos), 10)
+
+    def teste_leitura_de_quem_deixou_de_ser_primario_repete_no_novo(self):
+        self.encaminhador.encontrar_primario()
+        self.rede.primario = "no-a"   # B perdeu a eleição mas continua vivo
+
+        resposta = self.encaminhador.reenviar("GET", "/contas/alice")
+
+        self.assertEqual(resposta.json()["atendido_por"], "no-a")
+        self.assertEqual(self.encaminhador.encontrar_primario(), "http://no-a:8001")
 
     def teste_segue_o_primario_provavel_de_um_409(self):
         self.encaminhador.encontrar_primario()

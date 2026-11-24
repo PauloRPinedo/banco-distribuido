@@ -74,6 +74,16 @@ class TesteAcrescentarDoLider(BaseComLog):
         self.assertEqual(self.log.ultimo_indice, 2)
         self.assertEqual(len(self.log.ler_desde(0)), 2)
 
+    def teste_uma_mensagem_antiga_e_mais_curta_nao_apaga_as_seguintes(self):
+        """Chegou primeiro o lote 1..3 e depois, atrasado, o 1..2 do mesmo
+        líder. As entradas iguais ficam, e a 3 também: a réplica já a
+        confirmou ao líder, que pode tê-la contado para a maioria."""
+        self.log.acrescentar_do_lider([entrada(1), entrada(2), entrada(3)])
+
+        self.log.acrescentar_do_lider([entrada(1), entrada(2)])
+
+        self.assertEqual(self.log.ultimo_indice, 3)
+
     def teste_entradas_divergentes_sao_substituidas(self):
         """O log do líder ganha: é ele que tem o mandato."""
         self.encher(3, epoch=1)

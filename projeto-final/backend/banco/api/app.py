@@ -26,6 +26,32 @@ async def ciclo_de_vida(_aplicacao: FastAPI):
     fechar_no_do_processo()
 
 
+class DizSeEPrimario:
+    """Acrescenta `X-Primario-Pronto: sim|nao` a todas as respostas.
+
+    É o que deixa o balanceador confiar no primário em cache sem lhe perguntar
+    antes de cada pedido: se a resposta diz `nao`, ele volta a procurar.
+    ASGI puro, e não um `@middleware("http")`, para não custar quase nada.
+    """
+
+    def __init__(self, app) -> None:
+        self.aplicacao = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.aplicacao(scope, receive, send)
+            return
+
+        async def enviar(mensagem):
+            if mensagem["type"] == "http.response.start":
+                no = no_do_processo()
+                pronto = b"sim" if no.e_primario() and no.pronto() else b"nao"
+                mensagem.setdefault("headers", []).append((b"x-primario-pronto", pronto))
+            await send(mensagem)
+
+        await self.aplicacao(scope, receive, enviar)
+
+
 def criar_app() -> FastAPI:
     aplicacao = FastAPI(title="Banco distribuído — Projeto final", version="0.3.0",
                         lifespan=ciclo_de_vida)
@@ -34,6 +60,7 @@ def criar_app() -> FastAPI:
     # um `SaldoInsuficiente` ou um `NaoSouPrimario` cai aqui sem estar listado.
     aplicacao.add_exception_handler(ErroDoBanco, traducao.erro_do_banco)
     aplicacao.add_exception_handler(RequestValidationError, traducao.corpo_invalido)
+    aplicacao.add_middleware(DizSeEPrimario)
 
     aplicacao.include_router(rotas_auth.router)
     aplicacao.include_router(rotas_contas.router)
