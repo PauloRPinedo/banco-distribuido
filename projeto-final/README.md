@@ -927,9 +927,9 @@ esquecido.
 - [ ] O painel não abre sem rede (não há *service worker*, de propósito), e
       ainda não tem testes automáticos próprios: foi verificado com um
       percurso num navegador, não com uma suite no CI.
-- [ ] **Os segredos que estiveram no git têm de ser rodados.** O histórico local
-      foi reescrito para os tirar, mas o GitHub ainda os tem (no `main` até
-      haver *force-push*, e para sempre em `refs/pull/1` e `refs/pull/2`).
+- [ ] Os segredos que estiveram no git saíram do `main` do GitHub (com
+      *force-push*), mas continuam em `refs/pull/1` e `refs/pull/2`. Não se
+      rodam, por decisão: é um projeto de teste.
 - [ ] A porta 8001 continua aberta à Internet: as rotas entre nós estão
       protegidas pela chave, mas `/interno/estado` e `/interno/cluster` são
       públicos e qualquer um pode tentar a sorte com tokens. Ligar o Lambda à
@@ -969,7 +969,6 @@ esquecido.
 
 | # | Proposta | Porquê |
 |---|---|---|
-| 1 | Rodar as senhas e a `SECRET_KEY`, e fazer *force-push* do histórico limpo | Os segredos antigos estão públicos no GitHub |
-| 2 | Menos idas à base por escrita (o fim do log em memória; deduplicar e validar com a mesma ligação) e separar a API HTTP do nó em vários processos | O limite das escritas (~100/s) é a CPU do processo Python do primário (RNF-04) |
-| 3 | Implantar os três nós na AWS (um por zona) com este código, e repetir as provas lá | O plano está em `docs/PROPOSTA-ARQUITETURA-AWS.md` |
-| 4 | Ligar o Lambda à VPC e fechar a porta 8001 ao *security group* do balanceador | Hoje a API de cada nó está na Internet |
+| 1 | Menos idas à base por escrita (o fim do log em memória; deduplicar e validar com a mesma ligação) e separar a API HTTP do nó em vários processos | O limite das escritas (~100/s) é a CPU do processo Python do primário (RNF-04) |
+| 2 | Implantar os três nós na AWS (um por zona) com este código, e repetir as provas lá | O plano está em `docs/PROPOSTA-ARQUITETURA-AWS.md` |
+| 3 | Ligar o Lambda à VPC e fechar a porta 8001 ao *security group* do balanceador | Hoje a API de cada nó está na Internet |

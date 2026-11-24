@@ -489,7 +489,7 @@ entrega.
 
 - [ ] Lançar `postgres-c` e `backend-c` em `us-east-2c` (passos 1 a 3 do guia), quando chegar
       a quota
-- [ ] Rodar as senhas do Postgres e a `SECRET_KEY` usadas nos primeiros testes (houve segredos
+- [ ] (Decidido não fazer: é um projeto de teste.) Rodar as senhas do Postgres e a `SECRET_KEY` usadas nos primeiros testes (houve segredos
       em ficheiros versionados; limparam-se em `d78719d`, mas continuam no histórico do git).
       Guardá-los em `/etc/banco/backend-X.env`, que é o que o
       [`projeto-final.yml`](../../.github/workflows/projeto-final.yml) já espera, nunca no git

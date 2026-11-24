@@ -318,12 +318,12 @@ pergunta antes de cada pedido e segue um primário que deixou de o ser. O
 
 | # | Problema | Estado |
 |---|---|---|
-| 1 | Segredos no histórico | **Resolvido no repositório local.** No GitHub ainda estão (ver «O que falta») |
+| 1 | Segredos no histórico | Fora do `main` do GitHub desde o *force-push*; continuam em `refs/pull/1` e `refs/pull/2` e não se rodam, por decisão (ver «O que falta») |
 | 2 | Duplo gasto | Resolvido |
 | 3 | Idempotência | Resolvido |
 | 4 | Sem réplica | Resolvido (local e nos testes; falta na AWS) |
 | 5 | Frontend sem token | Resolvido |
-| 6 | CI que não corria | Resolvido; ainda não correu no GitHub porque não houve push |
+| 6 | CI que não corria | Resolvido; correu no GitHub a 24 de novembro e passou |
 | 7 | Rotas expostas | Resolvido no código; a porta 8001 continua aberta na AWS |
 | 8 | Contas em nome de outros | Resolvido |
 | 9 | Erros mal traduzidos | Resolvido |
@@ -334,16 +334,16 @@ pergunta antes de cada pedido e segue um primário que deixou de o ser. O
 
 ### Urgente
 
-- [ ] **Rodar as senhas do Postgres e a `SECRET_KEY` na AWS.** O histórico local
-      está limpo, mas o GitHub ainda os tem: no `main` até haver *force-push*, e
-      para sempre em `refs/pull/1` e `refs/pull/2`, que um *force-push* não apaga.
-      Só a rotação os torna inofensivos.
-- [ ] **Commit e *force-push*** do histórico reescrito, quando o grupo concordar.
-      Quem já tem um clone tem de voltar a clonar, ou fazer
-      `git fetch && git reset --hard origin/main`. O *force-push* apaga do `main`
-      o PR #3 do Jefferson (`b12b436`); o conteúdo útil já está aqui, portado.
-      O fork dele (`JEFRY200307/banco-distribuido`) também tem os segredos no
-      histórico.
+- [x] **Commit e *force-push*** do histórico reescrito (24 de novembro): o
+      `main` do GitHub passou de `b12b436` a `c3f1cb9`. Quem já tem um clone
+      tem de voltar a clonar, ou fazer `git fetch && git reset --hard
+      origin/main`. O PR #3 do Jefferson saiu do `main`; o conteúdo útil já
+      estava aqui, portado. O CI correu pela primeira vez no GitHub e passou
+      (testes e construção das imagens; a implantação salta-se até haver AWS).
+- **Rodar as senhas e a `SECRET_KEY`: não se faz, por decisão** (é um projeto
+  de teste). Os segredos antigos continuam visíveis em `refs/pull/1` e
+  `refs/pull/2` do GitHub e no histórico do fork `JEFRY200307/banco-distribuido`,
+  que um *force-push* não apaga.
 
 ### Implantação na AWS
 
