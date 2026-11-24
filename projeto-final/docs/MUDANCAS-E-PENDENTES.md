@@ -1,7 +1,9 @@
 # Projeto final — o que mudou e o que falta
 
 Data: 22 de novembro de 2026; a integração da versão do Jefferson, 23 de
-novembro. Estado do trabalho: **feito localmente, sem commit nem push**.
+novembro. Estado do trabalho: **no GitHub (`c3f1cb9`, com *force-push*) e
+implantado na AWS a 23 de novembro** (secção 10). Falta repetir as provas na
+AWS.
 
 ## Ponto de partida
 
@@ -298,6 +300,43 @@ truncar da réplica; o *pool* devolve as ligações limpas; o balanceador não
 pergunta antes de cada pedido e segue um primário que deixou de o ser. O
 `teste_cluster.py` passou 30 de 30 seguidas depois disto.
 
+### 10. Implantação na AWS (23 de novembro)
+
+Feita pelo Jefferson, a partir do `c3f1cb9`, seguindo a
+[`GUIA-RECONSTRUIR-EC2.md`](GUIA-RECONSTRUIR-EC2.md).
+
+**Onde está cada coisa.** O cluster está em duas contas AWS (`us-east-2`),
+unidas por *VPC peering*, porque a conta antiga não tinha quota de vCPU para o
+nó C:
+
+| Nó | Conta | Rede |
+|---|---|---|
+| A (`backend-a`, `postgres-a`) e o Lambda | antiga | VPC por omissão, `172.31.0.0/16` |
+| B e C (`backend-X`, `postgres-X`) | nova | VPC própria, `10.1.0.0/16` (não a de omissão, que se sobrepunha à outra e o *peering* não o aceita) |
+
+Os três nós alcançam-se por IP privado na porta 8001, através do *peering*.
+
+**O que se fez**
+
+| Passo | Como ficou |
+|---|---|
+| Bases | Os três `postgres-X` recriados com o `esquema.sql` desta versão (sem migração; os dados de teste perderam-se). `\dt` lista as 7 tabelas nas três |
+| Backends | Imagem construída a partir do clone do repositório em cada instância. `/etc/banco/cluster.json` com os IPs **privados** dos três nós. As variáveis comuns (`PG*`, `SECRET_KEY`, `CHAVE_ADMIN`, `CLUSTER_CONFIG`, `PORTA`) estão num único `/etc/banco/backend.env`, igual nos três; `NO_ID` e `PGHOST` passam-se no `docker run` com `-e`. Sem `FALHAS_ATIVAS` |
+| Eleição | Um só primário (A), B e C réplicas, o mesmo `epoch` e o mesmo `lider` nos três, índices do log iguais, `pronto: true` |
+| Lambda | Imagem nova no ECR e *Deploy new image* na função. O CloudShell estava bloqueado («verificação da conta em curso»), por isso a imagem construiu-se em `backend-a`, com o papel IAM temporário `backend-ecr-temporal`. `CLUSTER_CONFIG_JSON` com os IPs **privados**: o Lambda já estava ligado à VPC |
+| Vercel | Sem mudanças: a Function URL é a mesma, e o `vercel.json` já apontava para ela |
+| Porta 8001 | Sem `0.0.0.0/0`. Só a abrem a outra VPC (pelo *peering*), o próprio *security group* dos backends e o do Lambda |
+
+**Verificado:** `/interno/estado` em cada nó; `<Function URL>/saude` →
+`{"balanceador":"ativo"}`; `<Function URL>/interno/estado` e
+`https://<site>.vercel.app/api/interno/estado` → o estado do primário.
+
+**Diferença em relação à guia:** o CI espera um `/etc/banco/backend-X.env` por
+nó, com `NO_ID` e `PGHOST` dentro (`projeto-final.yml`, que não passa `-e`). Na
+AWS há um só `backend.env` sem essas duas. Para a implantação manual não
+importa; para ligar a do CI é preciso criar os três ficheiros por nó (cópia do
+comum mais `NO_ID` e `PGHOST`).
+
 ## Verificação
 
 | O quê | Resultado |
@@ -318,13 +357,13 @@ pergunta antes de cada pedido e segue um primário que deixou de o ser. O
 
 | # | Problema | Estado |
 |---|---|---|
-| 1 | Segredos no histórico | Fora do `main` do GitHub desde o *force-push*; continuam em `refs/pull/1` e `refs/pull/2` e não se rodam, por decisão (ver «O que falta») |
+| 1 | Segredos no histórico | **Resolvido no `main` do GitHub** (*force-push*). Continuam em `refs/pull/1` e `refs/pull/2` (ver «O que falta») |
 | 2 | Duplo gasto | Resolvido |
 | 3 | Idempotência | Resolvido |
-| 4 | Sem réplica | Resolvido (local e nos testes; falta na AWS) |
+| 4 | Sem réplica | Resolvido, também na AWS (secção 10) |
 | 5 | Frontend sem token | Resolvido |
-| 6 | CI que não corria | Resolvido; correu no GitHub a 24 de novembro e passou |
-| 7 | Rotas expostas | Resolvido no código; a porta 8001 continua aberta na AWS |
+| 6 | CI que não corria | Resolvido; correu no push de `c3f1cb9` (testes e build). A implantação pelo CI continua desligada |
+| 7 | Rotas expostas | Resolvido no código e na AWS: a 8001 já não está aberta à Internet (secção 10) |
 | 8 | Contas em nome de outros | Resolvido |
 | 9 | Erros mal traduzidos | Resolvido |
 | 10 | Balanceador bloqueante | Resolvido |
@@ -334,42 +373,45 @@ pergunta antes de cada pedido e segue um primário que deixou de o ser. O
 
 ### Urgente
 
-- [x] **Commit e *force-push*** do histórico reescrito (24 de novembro): o
-      `main` do GitHub passou de `b12b436` a `c3f1cb9`. Quem já tem um clone
-      tem de voltar a clonar, ou fazer `git fetch && git reset --hard
-      origin/main`. O PR #3 do Jefferson saiu do `main`; o conteúdo útil já
-      estava aqui, portado. O CI correu pela primeira vez no GitHub e passou
-      (testes e construção das imagens; a implantação salta-se até haver AWS).
-- **Rodar as senhas e a `SECRET_KEY`: não se faz, por decisão** (é um projeto
-  de teste). Os segredos antigos continuam visíveis em `refs/pull/1` e
-  `refs/pull/2` do GitHub e no histórico do fork `JEFRY200307/banco-distribuido`,
-  que um *force-push* não apaga.
+- [ ] **Confirmar se é preciso rodar as senhas do Postgres e a `SECRET_KEY`.**
+      Na reimplantação de 23 de novembro mantiveram-se as que já estavam na AWS
+      (só a `CHAVE_ADMIN` é nova). Se forem as que estiveram no histórico, têm de
+      se trocar: continuam para sempre em `refs/pull/1` e `refs/pull/2`, que um
+      *force-push* não apaga. Confirma-se com `git log --all -S '<início do segredo>'`
+      num clone antigo.
+- [x] **Commit e *force-push*** do histórico reescrito (`c3f1cb9`). O fork do
+      Jefferson foi alinhado com `git reset --hard upstream/main` e *force-push*.
+      A versão anterior dele ficou na rama `respaldo-jefferson` desse fork, com o
+      histórico antigo: apagá-la se tiver os segredos.
 
 ### Implantação na AWS
 
-- [ ] Implantar este código nas instâncias, que correm a versão do Jefferson.
-      O esquema mudou: as bases têm de ser recriadas
-      ([`docs/GUIA-RECONSTRUIR-EC2.md`](GUIA-RECONSTRUIR-EC2.md)).
-- [ ] Confirmar o nó C. As notas do Jefferson usam três backends, B e C em
-      endereços `10.1.x` e A em `172.31.x`; se forem VPCs diferentes, os nós não
-      se alcançam por IP privado (`docs/INVENTARIO-INSTANCIAS.md`). Com dois nós,
-      ao cair um não há maioria.
-- [ ] Criar `/etc/banco/cluster.json` e `/etc/banco/backend-X.env` em cada
-      backend (guia, Passo 3).
-- [ ] Voltar a implantar o Lambda e atualizar a URL em `frontend/vercel.json`,
-      que aponta para a função antiga.
-- [ ] Ligar o Lambda à VPC e fechar a porta 8001 ao *security group* do
-      balanceador. O Lambda chega hoje aos nós por IP **público**, que muda ao
-      parar uma instância, e a API de cada nó está na Internet.
-- [ ] Repetir as provas na AWS (failover com *Stop instance*, total de dinheiro
-      e impressão digital das bases).
-- [ ] Configurar no GitHub (depois da implantação, porque são os valores dela)
-      os segredos `SSH_HOST_A/B/C`, `SSH_USER`, `SSH_KEY`
-      e as variáveis `AWS_ROLE_ARN`, `AWS_REGION`, `ECR_REGISTRY` e
-      `IMPLANTACAO_ATIVA`. Confirmar no primeiro *run* que
-      `secrets[format('SSH_HOST_{0}', matrix.no)]` resolve com o nó em
-      minúsculas (os nomes de segredos não distinguem maiúsculas, mas isto não
-      foi testado).
+- [x] Implantar este código nas instâncias, com as bases recriadas (secção 10).
+- [x] Confirmar o nó C. A em `172.31.x` e B/C em `10.1.x` são VPCs de contas
+      diferentes, unidas por *VPC peering*; os três alcançam-se por IP privado e
+      elegem um só primário.
+- [x] Criar `/etc/banco/cluster.json` e as variáveis de cada backend. Ficaram num
+      `backend.env` comum, e não em `backend-X.env` (ver secção 10 para o CI).
+- [x] Voltar a implantar o Lambda. A URL não mudou, por isso o
+      `frontend/vercel.json` não precisou de mudança.
+- [x] Lambda na VPC e porta 8001 fechada à Internet. O Lambda já estava ligado à
+      VPC e chega aos nós por IP **privado**, que não muda ao parar uma instância.
+- [ ] Repetir as provas na AWS: o percurso no painel, failover com *Stop
+      instance* do primário, total de dinheiro e impressão digital das três
+      bases.
+- [ ] Implantação pelo CI (opcional; a manual chega para a entrega). Antes de
+      ligar `IMPLANTACAO_ATIVA`:
+      - os segredos `SSH_HOST_A/B/C`, `SSH_USER`, `SSH_KEY` e as variáveis
+        `AWS_ROLE_ARN`, `AWS_REGION`, `ECR_REGISTRY` vão no repositório do
+        grupo, e só quem é admin os pode pôr;
+      - criar `/etc/banco/backend-X.env` por nó (secção 10);
+      - a porta 22 dos backends só aceita o IP de quem administra e o EC2
+        Instance Connect; o SSH a partir do GitHub Actions não entra sem a abrir;
+      - o cluster está em duas contas: o job do Lambda só conhece uma
+        (`AWS_ROLE_ARN`, `ECR_REGISTRY`), o que basta, porque o Lambda e o ECR
+        estão os dois na conta antiga;
+      - confirmar no primeiro *run* que `secrets[format('SSH_HOST_{0}', matrix.no)]`
+        resolve com o nó em minúsculas (não foi testado).
 
 ### Limitações conhecidas do sistema
 

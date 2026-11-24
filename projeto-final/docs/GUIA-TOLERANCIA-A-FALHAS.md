@@ -9,10 +9,13 @@ partes, com os mesmos testes:
 - **[Parte B](#parte-b--em-vários-portáteis-na-mesma-rede):** os nós espalhados
   por dois ou três portáteis na mesma rede. Cada falha pode ser provocada e
   observada a partir de qualquer um deles.
+- **[Parte C](#parte-c--na-aws-um-nó-por-pessoa):** o cluster implantado na
+  AWS, com cada pessoa responsável por um nó.
 
-Todas as saídas desta guia são de execuções reais, de 23 de novembro de 2026. A
-Parte B foi ensaiada num só portátil, com os três nós a falarem entre si pelo
-IP da rede local.
+Todas as saídas das Partes A e B são de execuções reais, de 23 de novembro de
+2026. A Parte B foi ensaiada num só portátil, com os três nós a falarem entre si
+pelo IP da rede local. A Parte C ainda não tem saídas guardadas: escrevam-nas
+aqui quando a correrem.
 
 ## Índice
 
@@ -20,6 +23,7 @@ IP da rede local.
 - [As ajudas da consola](#as-ajudas-da-consola)
 - [Parte A — num só portátil](#parte-a--num-só-portátil)
 - [Parte B — em vários portáteis, na mesma rede](#parte-b--em-vários-portáteis-na-mesma-rede)
+- [Parte C — na AWS, um nó por pessoa](#parte-c--na-aws-um-nó-por-pessoa)
 - [Problemas comuns](#problemas-comuns)
 
 ---
@@ -654,13 +658,410 @@ eleição com esse log antigo e impô-lo aos outros.
 
 ---
 
+## Parte C — na AWS, um nó por pessoa
+
+O cluster na AWS está em duas contas, unidas por *VPC peering*
+([`MUDANCAS-E-PENDENTES.md`](MUDANCAS-E-PENDENTES.md), secção 10). Cada pessoa
+fica com um nó: abre a consola do seu `backend-X` e a do seu `postgres-X` com
+**Connect → EC2 Instance Connect**.
+
+Todos os blocos desta parte são para **copiar e colar sem mudar nada**: os
+comandos descobrem sozinhos em que instância estão (`backend-a`, `backend-b`
+ou `backend-c`). Onde um passo é na consola web da AWS, e não num terminal,
+está escrito em texto.
+
+Duas diferenças em relação às Partes A e B:
+
+- Na AWS os nós arrancam **sem** `FALHAS_ATIVAS`, de propósito. `falha` e
+  `failover` respondem `403 falhas_desativadas`. As quedas provocam-se com as
+  ajudas desta parte (`derrubar_este`, `parar_este`) ou com **Stop instance**.
+- Por isso, o atraso de rede (A.6) e a partição (A.5) não se fazem na AWS:
+  ficam provados nas Partes A e B.
+
+### C.1 Quem fica com que nó
+
+| Nó | Conta AWS | `backend-X` (IP privado) | `postgres-X` (IP privado) | Pessoa |
+|---|---|---|---|---|
+| A | antiga | `172.31.12.211` | `172.31.12.43` | 1 |
+| B | nova | `10.1.0.27` | `10.1.5.208` | 2 |
+| C | nova | `10.1.31.94` | `10.1.26.86` | 3 |
+
+> **Nota:** os IPs desta tabela estão escritos nos comandos abaixo. Se alguma
+> instância foi relançada (não basta parar e arrancar), o IP privado mudou: aí
+> é preciso trocá-lo nos comandos, no `/etc/banco/cluster.json` dos três
+> backends e no `CLUSTER_CONFIG_JSON` do Lambda.
+
+### C.2 Preparar a consola de cada `backend-X`
+
+**Uma vez por instância**, cada pessoa cola isto na consola do seu `backend-X`.
+Guarda em `~/ajudas.sh` os endereços do cluster, as
+[ajudas da consola](#as-ajudas-da-consola) e as ajudas da AWS (mais abaixo),
+lidas desta guia no GitHub:
+
+```bash
+{
+  echo 'NOS=(172.31.12.211:8001 10.1.0.27:8001 10.1.31.94:8001)'
+  echo 'BANCO=https://usrzoacnuosa6bhetxt5qa4mwe0ldjrk.lambda-url.us-east-2.on.aws'
+  curl -fsSL https://raw.githubusercontent.com/PauloRPinedo/banco-distribuido/main/projeto-final/docs/GUIA-TOLERANCIA-A-FALHAS.md \
+    | tr -d '\r' | awk '/^# --- banco: ajudas/{p=1} p&&/^```/{p=0} p'
+} > ~/ajudas.sh
+source ~/ajudas.sh
+type derrubar_este >/dev/null 2>&1 && echo "ajudas prontas" || echo "FALTAM as ajudas da AWS: ver a nota"
+```
+
+> **Nota:** se disser `FALTAM as ajudas da AWS`, esta Parte C ainda não está
+> no `main` do repositório do grupo. Cola então o mesmo bloco, mas a ler do
+> fork onde ela já está:
+>
+> ```bash
+> {
+>   echo 'NOS=(172.31.12.211:8001 10.1.0.27:8001 10.1.31.94:8001)'
+>   echo 'BANCO=https://usrzoacnuosa6bhetxt5qa4mwe0ldjrk.lambda-url.us-east-2.on.aws'
+>   curl -fsSL https://raw.githubusercontent.com/JEFRY200307/banco-distribuido/main/projeto-final/docs/GUIA-TOLERANCIA-A-FALHAS.md \
+>     | tr -d '\r' | awk '/^# --- banco: ajudas/{p=1} p&&/^```/{p=0} p'
+> } > ~/ajudas.sh
+> source ~/ajudas.sh
+> type derrubar_este >/dev/null 2>&1 && echo "ajudas prontas" || echo "FALTAM as ajudas da AWS"
+> ```
+
+**Em cada consola nova** (cada vez que abrires o *Connect*), basta:
+
+```bash
+source ~/ajudas.sh
+```
+
+As ajudas da AWS, que o bloco acima já descarregou (estão aqui para se ver o
+que fazem; não é preciso colá-las):
+
+```bash
+# --- banco: ajudas da AWS (Parte C) ---
+# O nome do contentor backend-X desta instância, a correr ou parado.
+este_backend() { docker ps -a --format '{{.Names}}' | grep '^backend-' | head -n1; }
+
+# Para o backend-X desta instância sem aviso, como um corte de luz.
+# Não volta sozinho: o --restart unless-stopped respeita uma paragem manual.
+parar_este() { docker stop -t 0 "$(este_backend)"; }
+
+# Volta a levantar o backend-X desta instância.
+levantar_este() { docker start "$(este_backend)"; }
+
+# Para o backend-X desta instância e mede quanto tempo passa até haver primário.
+derrubar_este() {
+  local nome
+  nome=$(docker ps --format '{{.Names}}' | grep '^backend-' | head -n1)
+  [ -n "$nome" ] || { echo "o backend-X desta instância não está a correr"; return 1; }
+  python3 - "$nome" "${NOS[@]}" <<'PY'
+import json, subprocess, sys, time, urllib.request
+nome, nos = sys.argv[1], sys.argv[2:]
+def estado(no):
+    try:
+        return json.load(urllib.request.urlopen(f"http://{no}/interno/estado", timeout=0.3))
+    except Exception:
+        return None
+local = estado("127.0.0.1:8001") or {}
+era_primario = local.get("papel") == "primário"
+antes = max((e["epoch"] for no in nos if (e := estado(no))), default=0)
+print(f"a parar {nome} (nó {local.get('no', '?')}, {local.get('papel', '?')}), epoch {antes}")
+inicio = time.monotonic()
+subprocess.run(["docker", "stop", "-t", "0", nome], check=True, capture_output=True)
+while time.monotonic() - inicio < 15:
+    for no in nos:
+        e = estado(no)
+        if not e or e["papel"] != "primário" or e["no"] == local.get("no"):
+            continue
+        if era_primario and e["epoch"] <= antes:
+            continue
+        print(f"primário: nó {e['no']} ({no}), epoch {e['epoch']}, "
+              f"{time.monotonic() - inicio:.2f} s depois")
+        sys.exit()
+    time.sleep(0.05)
+sys.exit("ninguém é primário 15 s depois: há maioria de pé?")
+PY
+}
+```
+
+### C.3 Antes de cada teste
+
+Em cada `backend-X`:
+
+```bash
+source ~/ajudas.sh
+docker ps --format 'table {{.Names}}\t{{.Status}}'
+estado
+```
+
+O `backend-X` tem de estar `Up`, e o `estado` tem de mostrar um só
+`primário`, com o mesmo `epoch` e o mesmo `líder` nos três.
+
+> **Nota:** o primário muda a cada teste. Vejam no `estado` quem é antes de
+> começar: é essa pessoa que provoca a queda nos testes C.5 e C.9.
+
+### C.4 Como dividir o trabalho
+
+| Papel | O que faz | Onde |
+|---|---|---|
+| Quem tem o primário | Provoca a queda (`derrubar_este`) | O seu `backend-X` |
+| Quem escreve | `preparar`, `rajada`, `saldo` | Outro `backend-X` |
+| Quem observa | `vigiar`, e no painel (Vercel) o ecrã **Estado do cluster** | O terceiro `backend-X` |
+
+Quem escreve e quem observa podem ser a mesma pessoa, com duas consolas.
+
+### C.5 Queda do primário a meio de escritas (RF-09, RF-13, RNF-02, RNF-03)
+
+**Prova:** outro nó assume em menos de 2 s, e nenhum depósito se perde nem se
+duplica.
+
+1. Quem escreve:
+
+   ```bash
+   preparar
+   rajada 100
+   ```
+
+2. **Enquanto a rajada corre** (vão aparecendo os números), quem tem o
+   primário:
+
+   ```bash
+   derrubar_este
+   ```
+
+3. Quando a rajada acabar, quem escreve:
+
+   ```bash
+   saldo
+   estado
+   ```
+
+   O saldo tem de ser exatamente **R$ 100,00**. O nó parado aparece
+   `EM BAIXO`, e há outro primário com o `epoch` maior. Os `[503]` que
+   aparecem na rajada são o cliente a repetir com o mesmo `op_id`: cada
+   depósito entra uma vez.
+
+### C.6 O nó volta e alcança os outros (RF-12)
+
+Quem parou o seu nó no C.5:
+
+```bash
+levantar_este
+sleep 4
+estado
+```
+
+O nó volta como **réplica**, mesmo que fosse primário, e os três índices
+(`log`, `commit`, `aplicado`) ficam iguais nos três.
+
+### C.7 Queda de uma réplica
+
+**Prova:** com uma réplica em baixo, o primário confirma com a outra, e as
+escritas não dão erro.
+
+1. Quem tem uma **réplica** (não o primário):
+
+   ```bash
+   derrubar_este
+   ```
+
+2. Quem escreve (sem `[503]` pelo meio):
+
+   ```bash
+   preparar
+   rajada 10
+   saldo
+   ```
+
+3. Quem parou:
+
+   ```bash
+   levantar_este
+   ```
+
+### C.8 Sem maioria, ninguém escreve (RNF-06)
+
+**Prova:** com um só nó de pé, as escritas dão `503`, as leituras continuam
+(marcadas como vindas de uma réplica), e a mesma escrita entra uma vez quando
+volta a maioria.
+
+1. Quem escreve:
+
+   ```bash
+   preparar
+   depositar 10.00
+   ```
+
+2. As **outras duas** pessoas, cada uma no seu `backend-X`:
+
+   ```bash
+   parar_este
+   ```
+
+3. Quem escreve:
+
+   ```bash
+   sleep 3
+   estado
+   depositar 7.00 sem-maioria-1
+   curl -s -D - "$BANCO/contas/$CONTA" -H "Authorization: Bearer $TOKEN"; echo
+   ```
+
+   O depósito dá `503 sem_primario`. A leitura dá `200`, com o cabeçalho
+   `x-leitura-de-replica`.
+
+4. **Uma** das duas que pararam:
+
+   ```bash
+   levantar_este
+   ```
+
+5. Quem escreve:
+
+   ```bash
+   sleep 4
+   depositar 7.00 sem-maioria-1
+   depositar 7.00 sem-maioria-1
+   saldo
+   ```
+
+   O mesmo `op_id` duas vezes: o saldo é **R$ 17,00**, os 7,00 entraram uma
+   vez.
+
+6. A **outra** que parou:
+
+   ```bash
+   levantar_este
+   ```
+
+### C.9 Queda da máquina inteira
+
+**Prova:** o mesmo que C.5, mas a falha é a instância, e não só o processo.
+
+1. Quem escreve:
+
+   ```bash
+   preparar
+   rajada 100
+   ```
+
+2. **Enquanto a rajada corre**, quem tem o primário, na consola web do EC2:
+   seleciona o seu `backend-X` → **Instance state** → **Stop instance** (nunca
+   *Terminate*). A consola do *Connect* dessa instância fecha-se: é normal.
+
+3. Quem observa:
+
+   ```bash
+   vigiar
+   ```
+
+   Em poucos segundos, outro nó é primário (`Ctrl+C` para sair).
+
+4. Quando a rajada acabar, quem escreve:
+
+   ```bash
+   saldo
+   ```
+
+   Tem de ser **R$ 100,00**.
+
+5. Quem parou, na consola web do EC2: **Instance state** → **Start instance**.
+   O contentor volta sozinho com a máquina e o nó entra como réplica. Passado
+   um minuto, quem observa:
+
+   ```bash
+   estado
+   ```
+
+   O IP privado não muda ao parar e arrancar; o público sim, mas nada o usa.
+
+### C.10 As três bases ficaram iguais
+
+Depois de cada teste, com os três de pé, cada pessoa cola isto na consola do
+seu **`postgres-X`** (não no `backend-X`). O mesmo comando serve nos três:
+
+```bash
+docker exec "$(docker ps --format '{{.Names}}' | grep '^postgres-')" psql -U banco -d banco -Atc \
+  "SELECT count(*), sum(saldo_centavos), md5(string_agg(id || ':' || saldo_centavos, ',' ORDER BY id)) FROM conta"
+```
+
+As três linhas têm de ser iguais. Se uma não for, esperem dois segundos e
+repitam: um nó que acabou de voltar pode ainda estar a aplicar.
+
+E, em qualquer `backend-X` (depois de um `preparar` nessa consola, porque a
+auditoria pede sessão):
+
+```bash
+auditoria
+```
+
+### C.11 Se um nó não volta
+
+Na consola desse `backend-X`:
+
+```bash
+source ~/ajudas.sh
+docker ps -a --format 'table {{.Names}}\t{{.Status}}'
+docker logs --tail 40 "$(este_backend)"
+```
+
+| No log | Causa | O que fazer |
+|---|---|---|
+| `password authentication failed` | O `PGPASSWORD` de `/etc/banco/backend.env` não é a senha do `postgres-X` | Corrigir a linha `PGPASSWORD=` com `sudo nano /etc/banco/backend.env` e recriar o contentor (bloco abaixo) |
+| `connection refused` para o Postgres | O `postgres-X` está parado | Na consola do `postgres-X`: `docker start "$(docker ps -a --format '{{.Names}}' \| grep '^postgres-')"` |
+| `falta o campo …` / `não é JSON válido` | `/etc/banco/cluster.json` estragado | Voltar a escrevê-lo, igual nos três ([`GUIA-RECONSTRUIR-EC2.md`](GUIA-RECONSTRUIR-EC2.md), passo 4) |
+
+Recriar o contentor (cada pessoa cola só o bloco do seu nó):
+
+```bash
+# nó A — em backend-a
+docker rm -f backend-a
+docker run -d --name backend-a -p 8001:8001 --restart unless-stopped \
+  -v /etc/banco/cluster.json:/config/cluster.json:ro \
+  --env-file /etc/banco/backend.env \
+  -e NO_ID=A -e PGHOST=172.31.12.43 \
+  backend
+```
+
+```bash
+# nó B — em backend-b
+docker rm -f backend-b
+docker run -d --name backend-b -p 8001:8001 --restart unless-stopped \
+  -v /etc/banco/cluster.json:/config/cluster.json:ro \
+  --env-file /etc/banco/backend.env \
+  -e NO_ID=B -e PGHOST=10.1.5.208 \
+  backend
+```
+
+```bash
+# nó C — em backend-c
+docker rm -f backend-c
+docker run -d --name backend-c -p 8001:8001 --restart unless-stopped \
+  -v /etc/banco/cluster.json:/config/cluster.json:ro \
+  --env-file /etc/banco/backend.env \
+  -e NO_ID=C -e PGHOST=10.1.26.86 \
+  backend
+```
+
+### C.12 Ao terminar
+
+1. Em cada `backend-X`, confirmem que ficou de pé:
+
+   ```bash
+   source ~/ajudas.sh
+   docker ps --format 'table {{.Names}}\t{{.Status}}'
+   estado
+   ```
+
+2. Para não gastar, na consola web do EC2: seleciona as 6 instâncias →
+   **Instance state** → **Stop instance** (não *Terminate*). Na sessão
+   seguinte, **Start instance** nas 6: os contentores voltam sozinhos.
+
+---
+
 ## Problemas comuns
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
 | `estado` diz `EM BAIXO` para um nó que está a correr | A firewall do portátil desse nó, ou uma rede que isola aparelhos | `ping`; abrir a porta; *hotspot* de telemóvel |
 | Todos ficam `candidato`, com o `epoch` sempre a subir | `SECRET_KEY` diferente entre portáteis (as rotas entre nós respondem `403 nao_e_par_do_cluster`), ou `cluster.lan.json` com um IP errado | Comparar a chave e o ficheiro em todos; recriar o contentor do nó |
-| `falha …` responde `403 falhas_desativadas` | O nó arrancou sem `FALHAS_ATIVAS=1` | Recriar o contentor com a variável |
+| `falha …` responde `403 falhas_desativadas` | O nó arrancou sem `FALHAS_ATIVAS=1` | Recriar o contentor com a variável. Na AWS é o esperado: usar `derrubar_este` (Parte C) |
 | `503 sem_primario` em tudo | Há uma eleição a decorrer, ou não há maioria de pé | `estado`; levantar nós até haver 2 de 3 |
 | O painel dá 502 | O balanceador não se chama `balanceador`, ou não está na rede `banco-lan` | Ver B.6 |
 | Um nó sai logo depois de arrancar (`docker ps -a` mostra `Exited`) | Arrancou antes de o Postgres estar pronto | `docker logs no-a`; `docker start no-a`; da próxima vez, esperar com o `until … pg_isready` |
