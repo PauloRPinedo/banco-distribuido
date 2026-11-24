@@ -94,6 +94,62 @@ preparar() {
   echo "utilizador $email, conta $CONTA"
 }
 
+# entrar EMAIL — entra com um utilizador que já existe (pede a senha sem a
+# mostrar), guarda TOKEN e lista as contas dele.
+entrar() {
+  [ -n "$1" ] || { echo "uso: entrar EMAIL"; return 1; }
+  local senha
+  printf 'senha de %s: ' "$1"; read -rs senha; echo
+  TOKEN=$(EMAIL="$1" SENHA="$senha" python3 -c 'import json,os; print(json.dumps({"email": os.environ["EMAIL"], "senha": os.environ["SENHA"]}))' \
+    | curl -s -X POST "$BANCO/auth/login" -H 'Content-Type: application/json' -d @- | _json token)
+  case "$TOKEN" in *erro*|"") echo "não entrou: $TOKEN"; TOKEN=; return 1;; esac
+  contas
+}
+
+# As contas do utilizador de `entrar`: id, número, moeda e saldo.
+contas() {
+  curl -s "$BANCO/contas" -H "Authorization: Bearer $TOKEN" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+if "contas" not in d:
+    sys.exit("erro: %s" % d)
+for c in d["contas"]:
+    print("%-24s n.º %-11s %s  %s" % (c["conta"], c.get("numero") or "-", c["moeda"], c["saldo"]))'
+}
+
+# usar CONTA — escolhe uma conta do utilizador (o id ou o número) para
+# depositar, rajada, saldo e conferir; guarda o saldo de agora em ANTES.
+usar() {
+  [ -n "$TOKEN" ] || { echo "corre primeiro: entrar EMAIL"; return 1; }
+  local r
+  r=$(curl -s "$BANCO/contas" -H "Authorization: Bearer $TOKEN" | python3 -c '
+import json, re, sys
+alvo = sys.argv[1]
+digitos = re.sub(r"\D", "", alvo)
+for c in json.load(sys.stdin).get("contas", []):
+    numero = re.sub(r"\D", "", c.get("numero") or "")
+    if c["conta"] == alvo or (numero and digitos.endswith(numero)):
+        print(c["conta"], c["saldo_centavos"], c["saldo"])
+        break' "$1")
+  [ -n "$r" ] || { echo "essa conta não é deste utilizador; vê a lista com: contas"; return 1; }
+  read -r CONTA ANTES r <<< "$r"
+  echo "a usar a conta $CONTA; saldo agora: $r"
+}
+
+# conferir VALOR — o saldo tem de ter subido exatamente VALOR desde o `usar`.
+conferir() {
+  [ -n "$ANTES" ] || { echo "corre primeiro: usar CONTA"; return 1; }
+  curl -s "$BANCO/contas/$CONTA" -H "Authorization: Bearer $TOKEN" | python3 -c '
+import json, sys
+from decimal import Decimal
+d = json.load(sys.stdin)
+antes, esperado = int(sys.argv[1]), int(Decimal(sys.argv[2]) * 100)
+subiu = d["saldo_centavos"] - antes
+print("antes %.2f, agora %.2f: subiu %.2f, esperado %.2f -> %s" % (
+    antes / 100, d["saldo_centavos"] / 100, subiu / 100, esperado / 100,
+    "CERTO" if subiu == esperado else "ERRADO"))' "$ANTES" "$1"
+}
+
 # depositar 10.00 [op_id] — um pedido; mostra o corpo e o código HTTP.
 depositar() {
   curl -s -w ' [%{http_code}]\n' -X POST "$BANCO/contas/$CONTA/deposito" \
@@ -121,7 +177,7 @@ rajada() {
 
 saldo() { curl -s "$BANCO/contas/$CONTA" -H "Authorization: Bearer $TOKEN" | _json saldo; }
 auditoria() {
-  [ -n "$TOKEN" ] || { echo "corre primeiro preparar: a auditoria exige sessão"; return 1; }
+  [ -n "$TOKEN" ] || { echo "corre primeiro preparar ou entrar: a auditoria exige sessão"; return 1; }
   curl -s "$BANCO/auditoria" -H "Authorization: Bearer $TOKEN"; echo
 }
 
@@ -180,10 +236,14 @@ O que cada ajuda faz:
 | `estado` | Uma linha por nó: papel, `epoch`, líder e os índices do log (`log`, `commit`, `aplicado`) |
 | `vigiar` | `estado` a cada meio segundo, até `Ctrl+C`. Deixa-o numa consola à parte |
 | `preparar` | Cria um utilizador e uma conta a zero, e guarda `TOKEN` e `CONTA` nesta consola |
+| `entrar EMAIL` | Entra com um utilizador que **já existe** (pede a senha) e lista as contas dele |
+| `contas` | As contas do utilizador de `entrar`, com número e saldo |
+| `usar CONTA` | Escolhe uma dessas contas (o id ou o número) e guarda o saldo de agora |
+| `conferir VALOR` | Diz `CERTO` se o saldo subiu exatamente `VALOR` desde o `usar` |
 | `depositar 10.00 [op_id]` | Um depósito; mostra a resposta e o código HTTP |
 | `rajada N` | N depósitos de 1,00. Cada um repete-se com o **mesmo** `op_id` até dar 200 |
-| `saldo` | O saldo da conta de `preparar` |
-| `auditoria` | Soma dos saldos contra soma do histórico, por moeda. Usa a sessão de `preparar` |
+| `saldo` | O saldo da conta de `preparar` ou de `usar` |
+| `auditoria` | Soma dos saldos contra soma do histórico, por moeda. Usa a sessão de `preparar` ou de `entrar` |
 | `falha NÓ JSON` | Injeção de falhas num nó: atrasar, isolar, limpar, derrubar |
 | `failover` | Derruba o primário e mede quanto tempo passa até haver outro |
 
@@ -672,11 +732,28 @@ está escrito em texto.
 
 Duas diferenças em relação às Partes A e B:
 
-- Na AWS os nós arrancam **sem** `FALHAS_ATIVAS`, de propósito. `falha` e
-  `failover` respondem `403 falhas_desativadas`. As quedas provocam-se com as
-  ajudas desta parte (`derrubar_este`, `parar_este`) ou com **Stop instance**.
-- Por isso, o atraso de rede (A.6) e a partição (A.5) não se fazem na AWS:
-  ficam provados nas Partes A e B.
+- **As falhas provocam-se na própria máquina, não pela API.** Na AWS os nós
+  arrancam **sem** `FALHAS_ATIVAS`, de propósito, e `falha` e `failover`
+  respondem `403 falhas_desativadas`. Em vez disso, as ajudas desta parte
+  usam o Docker e a rede da instância:
+
+  | Falha | Ajuda | Como |
+  |---|---|---|
+  | Queda do processo | `derrubar_este`, `parar_este` | `docker stop` do `backend-X` |
+  | Queda da máquina | — | **Stop instance** na consola do EC2 |
+  | Partição | `isolar_este` / `religar_este` | `iptables`: corta o tráfego de e para os outros dois nós |
+  | Rede lenta | `atrasar_este MS` / `sem_atraso` | `tc netem`: atrasa só os pacotes para os outros dois nós |
+
+- **Os testes usam contas que já existem**, e não contas criadas para o
+  teste. Quem escreve entra com o seu utilizador do painel (`entrar EMAIL`),
+  escolhe uma das suas contas (`usar CONTA`) e, no fim, `conferir VALOR` diz
+  se o saldo subiu exatamente o que se depositou. Os depósitos ficam na conta.
+  Durante um teste, ninguém mais deve mexer nessa conta: um movimento a meio
+  estraga a conta do `conferir`.
+
+> **Ainda não ensaiado na AWS.** A partição (`iptables`) e a rede lenta
+> (`tc netem`) não foram corridas nas instâncias. Se `atrasar_este` disser que
+> falta o `netem`, ver o [C.10](#c10-rede-lenta).
 
 ### C.1 Quem fica com que nó
 
@@ -778,6 +855,55 @@ while time.monotonic() - inicio < 15:
 sys.exit("ninguém é primário 15 s depois: há maioria de pé?")
 PY
 }
+
+# O IP privado e a placa de rede desta instância.
+este_ip() { ip route get 1.1.1.1 | awk '{for (i = 1; i < NF; i++) if ($i == "src") print $(i + 1)}'; }
+esta_placa() { ip route get 1.1.1.1 | awk '{for (i = 1; i < NF; i++) if ($i == "dev") print $(i + 1)}'; }
+
+# Os IPs dos outros dois nós (os de NOS, menos este).
+outros_nos() { local n eu; eu=$(este_ip); for n in "${NOS[@]}"; do [ "${n%:*}" = "$eu" ] || echo "${n%:*}"; done; }
+
+# Partição: corta o tráfego do backend-X de e para os outros dois nós. O
+# balanceador continua a chegar-lhe, e esta consola continua a ver os outros.
+isolar_este() {
+  local ip
+  for ip in $(outros_nos); do
+    sudo iptables -I DOCKER-USER -s "$ip" -j DROP
+    sudo iptables -I DOCKER-USER -d "$ip" -j DROP
+  done
+  echo "isolado de: $(outros_nos | tr '\n' ' ')"
+}
+
+# Desfaz o isolar_este.
+religar_este() {
+  local ip
+  for ip in $(outros_nos); do
+    while sudo iptables -D DOCKER-USER -s "$ip" -j DROP 2>/dev/null; do :; done
+    while sudo iptables -D DOCKER-USER -d "$ip" -j DROP 2>/dev/null; do :; done
+  done
+  echo "rede normal"
+}
+
+# Rede lenta: atrasa MS milissegundos os pacotes que este nó manda aos outros
+# dois (o resto, incluindo o Postgres e o balanceador, não).
+atrasar_este() {
+  local ms=${1:-400} placa ip
+  placa=$(esta_placa)
+  sudo tc qdisc del dev "$placa" root 2>/dev/null
+  sudo tc qdisc add dev "$placa" root handle 1: prio || return 1
+  if ! sudo tc qdisc add dev "$placa" parent 1:3 handle 30: netem delay "${ms}ms"; then
+    sudo tc qdisc del dev "$placa" root
+    echo "falta o netem nesta instância: ver o C.10"
+    return 1
+  fi
+  for ip in $(outros_nos); do
+    sudo tc filter add dev "$placa" protocol ip parent 1: prio 3 u32 match ip dst "$ip/32" flowid 1:3
+  done
+  echo "atraso de ${ms} ms para: $(outros_nos | tr '\n' ' ')"
+}
+
+# Desfaz o atrasar_este.
+sem_atraso() { sudo tc qdisc del dev "$(esta_placa)" root 2>/dev/null; echo "rede normal"; }
 ```
 
 ### C.3 Antes de cada teste
@@ -794,14 +920,25 @@ O `backend-X` tem de estar `Up`, e o `estado` tem de mostrar um só
 `primário`, com o mesmo `epoch` e o mesmo `líder` nos três.
 
 > **Nota:** o primário muda a cada teste. Vejam no `estado` quem é antes de
-> começar: é essa pessoa que provoca a queda nos testes C.5 e C.9.
+> começar: é essa pessoa que provoca a falha nos testes C.5, C.9 e C.11.
+
+Quem escreve entra, uma vez por consola, com o seu utilizador do painel, e
+escolhe a conta do teste (o id ou o número que `contas` mostra):
+
+```bash
+entrar o-meu-email@exemplo.com     # pede a senha
+usar 0001/12345678-9               # uma das contas da lista
+```
+
+Antes de **cada** teste, volta a correr `usar` com a mesma conta: guarda o
+saldo de partida para o `conferir` do fim.
 
 ### C.4 Como dividir o trabalho
 
 | Papel | O que faz | Onde |
 |---|---|---|
-| Quem tem o primário | Provoca a queda (`derrubar_este`) | O seu `backend-X` |
-| Quem escreve | `preparar`, `rajada`, `saldo` | Outro `backend-X` |
+| Quem tem o primário | Provoca a falha (`derrubar_este`, `isolar_este`) | O seu `backend-X` |
+| Quem escreve | `entrar`, `usar`, `rajada`, `conferir` | Outro `backend-X` |
 | Quem observa | `vigiar`, e no painel (Vercel) o ecrã **Estado do cluster** | O terceiro `backend-X` |
 
 Quem escreve e quem observa podem ser a mesma pessoa, com duas consolas.
@@ -814,7 +951,7 @@ duplica.
 1. Quem escreve:
 
    ```bash
-   preparar
+   usar <a-conta-do-teste>
    rajada 100
    ```
 
@@ -828,14 +965,14 @@ duplica.
 3. Quando a rajada acabar, quem escreve:
 
    ```bash
-   saldo
+   conferir 100
    estado
    ```
 
-   O saldo tem de ser exatamente **R$ 100,00**. O nó parado aparece
-   `EM BAIXO`, e há outro primário com o `epoch` maior. Os `[503]` que
-   aparecem na rajada são o cliente a repetir com o mesmo `op_id`: cada
-   depósito entra uma vez.
+   O `conferir` tem de dizer **CERTO**: o saldo subiu exatamente 100,00. O nó
+   parado aparece `EM BAIXO`, e há outro primário com o `epoch` maior. Os
+   `[503]` que aparecem na rajada são o cliente a repetir com o mesmo `op_id`:
+   cada depósito entra uma vez.
 
 ### C.6 O nó volta e alcança os outros (RF-12)
 
@@ -864,9 +1001,9 @@ escritas não dão erro.
 2. Quem escreve (sem `[503]` pelo meio):
 
    ```bash
-   preparar
+   usar <a-conta-do-teste>
    rajada 10
-   saldo
+   conferir 10
    ```
 
 3. Quem parou:
@@ -884,9 +1021,13 @@ volta a maioria.
 1. Quem escreve:
 
    ```bash
-   preparar
+   usar <a-conta-do-teste>
    depositar 10.00
+   OP=sem-maioria-$RANDOM$RANDOM   # o op_id que se repete nos passos 3 e 5
    ```
+
+   O `op_id` leva um número ao acaso porque a conta já existe e o teste pode
+   repetir-se: um `op_id` já usado noutro dia devolvia o resultado desse dia.
 
 2. As **outras duas** pessoas, cada uma no seu `backend-X`:
 
@@ -899,7 +1040,7 @@ volta a maioria.
    ```bash
    sleep 3
    estado
-   depositar 7.00 sem-maioria-1
+   depositar 7.00 $OP
    curl -s -D - "$BANCO/contas/$CONTA" -H "Authorization: Bearer $TOKEN"; echo
    ```
 
@@ -916,13 +1057,13 @@ volta a maioria.
 
    ```bash
    sleep 4
-   depositar 7.00 sem-maioria-1
-   depositar 7.00 sem-maioria-1
-   saldo
+   depositar 7.00 $OP
+   depositar 7.00 $OP
+   conferir 17
    ```
 
-   O mesmo `op_id` duas vezes: o saldo é **R$ 17,00**, os 7,00 entraram uma
-   vez.
+   O mesmo `op_id` duas vezes: o `conferir` diz **CERTO** com 17,00 (os 10,00
+   do passo 1 e os 7,00 uma só vez).
 
 6. A **outra** que parou:
 
@@ -930,14 +1071,121 @@ volta a maioria.
    levantar_este
    ```
 
-### C.9 Queda da máquina inteira
+### C.9 Partição: o primário isolado (RF-11)
+
+**Prova:** como na [A.5](#a5-partição-de-rede-o-primário-isolado-rf-11), mas
+com a rede da AWS. O primário separado dos outros dois deixa de confirmar
+escritas; os outros dois elegem um primário novo e o banco continua a escrever.
+Quando a rede volta, o antigo passa a réplica.
+
+1. Quem escreve:
+
+   ```bash
+   usar <a-conta-do-teste>
+   ```
+
+2. Quem tem o **primário**:
+
+   ```bash
+   isolar_este
+   ```
+
+3. Quem observa, passados uns 3 s:
+
+   ```bash
+   estado
+   ```
+
+   Os outros dois têm um primário novo, com o `epoch` maior. O isolado aparece
+   `EM BAIXO` nas consolas dos outros (não lhes responde), mas na sua própria
+   consola ainda se diz primário, com o `epoch` antigo.
+
+4. Quem escreve:
+
+   ```bash
+   depositar 3.00
+   ```
+
+   Dá `200`: o balanceador deixa o isolado e entrega ao primário novo.
+
+5. Quem isolou:
+
+   ```bash
+   religar_este
+   sleep 3
+   estado
+   ```
+
+   O antigo primário vê o `epoch` maior e passa a réplica; os três índices
+   ficam iguais nos três.
+
+6. Quem escreve: `conferir 3` tem de dizer **CERTO**.
+
+### C.10 Rede lenta
+
+**Prova:** como na [A.6](#a6-rede-lenta-rnf-02). Uma réplica lenta não atrasa o
+banco, porque basta a maioria. Com as duas réplicas mais lentas do que o
+`timeout_replicacao_ms` (500 ms), nada se confirma; a mesma escrita entra
+quando a rede melhora.
+
+1. Quem escreve:
+
+   ```bash
+   usar <a-conta-do-teste>
+   ```
+
+2. Quem tem **uma réplica**:
+
+   ```bash
+   atrasar_este 400
+   ```
+
+   Quem escreve: `depositar 1.00` dá `200`, porque a outra réplica responde a
+   tempo.
+
+3. Quem tem **a outra réplica**, e quem já atrasou, os dois:
+
+   ```bash
+   atrasar_este 700
+   ```
+
+   Quem escreve:
+
+   ```bash
+   OP=atraso-$RANDOM$RANDOM
+   depositar 1.00 $OP      # 503 sem_quorum
+   ```
+
+4. As duas réplicas:
+
+   ```bash
+   sem_atraso
+   ```
+
+   Quem escreve:
+
+   ```bash
+   depositar 1.00 $OP      # 200, e só uma vez
+   conferir 2
+   ```
+
+> **Se `atrasar_este` disser que falta o `netem`:** o Amazon Linux 2023 traz o
+> `tc`, mas o módulo `sch_netem` vem num pacote à parte. Instalem-no uma vez
+> por instância e repitam:
+>
+> ```bash
+> sudo dnf install -y iproute-tc "kernel-modules-extra-$(uname -r)"
+> sudo modprobe sch_netem
+> ```
+
+### C.11 Queda da máquina inteira
 
 **Prova:** o mesmo que C.5, mas a falha é a instância, e não só o processo.
 
 1. Quem escreve:
 
    ```bash
-   preparar
+   usar <a-conta-do-teste>
    rajada 100
    ```
 
@@ -956,10 +1204,10 @@ volta a maioria.
 4. Quando a rajada acabar, quem escreve:
 
    ```bash
-   saldo
+   conferir 100
    ```
 
-   Tem de ser **R$ 100,00**.
+   Tem de dizer **CERTO**: o saldo subiu exatamente 100,00.
 
 5. Quem parou, na consola web do EC2: **Instance state** → **Start instance**.
    O contentor volta sozinho com a máquina e o nó entra como réplica. Passado
@@ -971,7 +1219,7 @@ volta a maioria.
 
    O IP privado não muda ao parar e arrancar; o público sim, mas nada o usa.
 
-### C.10 As três bases ficaram iguais
+### C.12 As três bases ficaram iguais
 
 Depois de cada teste, com os três de pé, cada pessoa cola isto na consola do
 seu **`postgres-X`** (não no `backend-X`). O mesmo comando serve nos três:
@@ -984,14 +1232,14 @@ docker exec "$(docker ps --format '{{.Names}}' | grep '^postgres-')" psql -U ban
 As três linhas têm de ser iguais. Se uma não for, esperem dois segundos e
 repitam: um nó que acabou de voltar pode ainda estar a aplicar.
 
-E, em qualquer `backend-X` (depois de um `preparar` nessa consola, porque a
+E, em qualquer `backend-X` (depois de um `entrar` nessa consola, porque a
 auditoria pede sessão):
 
 ```bash
 auditoria
 ```
 
-### C.11 Se um nó não volta
+### C.13 Se um nó não volta
 
 Na consola desse `backend-X`:
 
@@ -1039,7 +1287,7 @@ docker run -d --name backend-c -p 8001:8001 --restart unless-stopped \
   backend
 ```
 
-### C.12 Ao terminar
+### C.14 Ao terminar
 
 1. Em cada `backend-X`, confirmem que ficou de pé:
 
