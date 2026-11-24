@@ -15,7 +15,8 @@ implantação na AWS pede a mais:
 
 - as rotas entre nós (`/interno/replicar`, `/interno/votar`, `/interno/log`)
   exigem a chave do cluster, derivada da `SECRET_KEY` — na AWS a porta 8001
-  está aberta à Internet e um pedido forjado seria aceite;
+  estava aberta à Internet e um pedido forjado seria aceite (já está fechada,
+  mas a chave continua a ser a proteção entre nós);
 - `POST /admin/falha` só existe com `FALHAS_ATIVAS=1` (ligado no compose
   local, desligado na AWS);
 - registar uma taxa de câmbio (`POST /admin/taxas`) exige a chave de operador
@@ -918,24 +919,29 @@ esquecido.
 
 **Falta:**
 
-- [ ] **Nada disto está implantado na AWS ainda.** As instâncias correm a
-      versão do Jefferson (outro esquema, outro protocolo). Trocá-la obriga a
-      recriar as bases: [`docs/GUIA-RECONSTRUIR-EC2.md`](docs/GUIA-RECONSTRUIR-EC2.md).
-      Depois, repetir as provas lá ([`docs/GUIA-IMPLANTACAO.md`, Passo 6](docs/GUIA-IMPLANTACAO.md#passo-6--verificar-de-ponta-a-ponta)).
+- [ ] **Implantado na AWS (23 de novembro), mas as provas ainda não se
+      repetiram lá.** Os três nós (`c3f1cb9`) estão em duas contas unidas por
+      *VPC peering* e elegem um só primário; o Lambda chega-lhes por IP privado
+      e a porta 8001 já não está aberta à Internet (secção 10 de
+      [`docs/MUDANCAS-E-PENDENTES.md`](docs/MUDANCAS-E-PENDENTES.md)). Falta o
+      percurso no painel, a queda do primário, o total de dinheiro e a
+      impressão digital das bases, com a
+      [Parte C da guia de tolerância a falhas](docs/GUIA-TOLERANCIA-A-FALHAS.md#parte-c--na-aws-um-nó-por-pessoa).
+- [ ] A implantação pelo CI continua desligada: na AWS há um só
+      `/etc/banco/backend.env` comum, e o workflow espera um
+      `backend-X.env` por nó, com `NO_ID` e `PGHOST`.
 - [ ] Não há recuperação de senha. Sem servidor de email não há como provar
       que quem a pede é o dono do email.
 - [ ] O painel não abre sem rede (não há *service worker*, de propósito), e
       ainda não tem testes automáticos próprios: foi verificado com um
       percurso num navegador, não com uma suite no CI.
 - [ ] Os segredos que estiveram no git saíram do `main` do GitHub (com
-      *force-push*), mas continuam em `refs/pull/1` e `refs/pull/2`. Não se
-      rodam, por decisão: é um projeto de teste.
-- [ ] A porta 8001 continua aberta à Internet: as rotas entre nós estão
-      protegidas pela chave, mas `/interno/estado` e `/interno/cluster` são
-      públicos e qualquer um pode tentar a sorte com tokens. Ligar o Lambda à
-      VPC e fechar a porta ao *security group* do balanceador fecharia isso.
-- [ ] O Lambda chega aos nós por IP **público**, que muda ao parar e arrancar uma
-      instância (G4 da proposta): é preciso atualizar `CLUSTER_CONFIG_JSON`.
+      *force-push*), mas continuam em `refs/pull/1` e `refs/pull/2`, e a AWS
+      manteve as senhas que já tinha. Não se rodam, por decisão: é um projeto
+      de teste.
+- [ ] Os IPs privados do cluster estão escritos no `cluster.json` de cada nó,
+      no `CLUSTER_CONFIG_JSON` do Lambda e na Parte C da guia: se uma instância
+      for relançada (não basta pará-la), têm de se mudar nos três sítios.
 - [ ] Sem *snapshots*, de propósito: um nó que esteve muito tempo em baixo
       recebe o log em lotes, uma ronda de heartbeat de cada vez. Com o volume
       de uma demonstração, isso são segundos; só faria falta com milhões de
@@ -960,8 +966,6 @@ esquecido.
       escrita (FastAPI e ~15 idas à base), num só núcleo por causa do GIL.
       Antes destas correções eram ~10 escritas/s (secção 9 de
       `docs/MUDANCAS-E-PENDENTES.md`).
-- [ ] O `frontend/vercel.json` aponta para uma função Lambda de uma implantação
-      anterior, e não para um balanceador implantado a partir deste código.
 
 ---
 
@@ -970,5 +974,5 @@ esquecido.
 | # | Proposta | Porquê |
 |---|---|---|
 | 1 | Menos idas à base por escrita (o fim do log em memória; deduplicar e validar com a mesma ligação) e separar a API HTTP do nó em vários processos | O limite das escritas (~100/s) é a CPU do processo Python do primário (RNF-04) |
-| 2 | Implantar os três nós na AWS (um por zona) com este código, e repetir as provas lá | O plano está em `docs/PROPOSTA-ARQUITETURA-AWS.md` |
-| 3 | Ligar o Lambda à VPC e fechar a porta 8001 ao *security group* do balanceador | Hoje a API de cada nó está na Internet |
+| 2 | Repetir as provas na AWS (Parte C da `docs/GUIA-TOLERANCIA-A-FALHAS.md`) e guardar as saídas na guia | O cluster já está implantado, mas ainda não se provou lá |
+| 3 | Ligar a implantação pelo CI (um `backend-X.env` por nó, segredos SSH, porta 22) | Hoje implanta-se à mão |

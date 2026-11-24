@@ -357,7 +357,7 @@ comum mais `NO_ID` e `PGHOST`).
 
 | # | Problema | Estado |
 |---|---|---|
-| 1 | Segredos no histórico | **Resolvido no `main` do GitHub** (*force-push*). Continuam em `refs/pull/1` e `refs/pull/2` (ver «O que falta») |
+| 1 | Segredos no histórico | **Resolvido no `main` do GitHub** (*force-push*). Continuam em `refs/pull/1` e `refs/pull/2` e não se rodam, por decisão (ver «O que falta») |
 | 2 | Duplo gasto | Resolvido |
 | 3 | Idempotência | Resolvido |
 | 4 | Sem réplica | Resolvido, também na AWS (secção 10) |
@@ -373,12 +373,11 @@ comum mais `NO_ID` e `PGHOST`).
 
 ### Urgente
 
-- [ ] **Confirmar se é preciso rodar as senhas do Postgres e a `SECRET_KEY`.**
-      Na reimplantação de 23 de novembro mantiveram-se as que já estavam na AWS
-      (só a `CHAVE_ADMIN` é nova). Se forem as que estiveram no histórico, têm de
-      se trocar: continuam para sempre em `refs/pull/1` e `refs/pull/2`, que um
-      *force-push* não apaga. Confirma-se com `git log --all -S '<início do segredo>'`
-      num clone antigo.
+- **Rodar as senhas do Postgres e a `SECRET_KEY`: não se faz, por decisão** (é
+  um projeto de teste). Na reimplantação de 23 de novembro mantiveram-se as que
+  já estavam na AWS (só a `CHAVE_ADMIN` é nova), e podem ser as que estiveram
+  no histórico: essas continuam para sempre em `refs/pull/1` e `refs/pull/2`,
+  que um *force-push* não apaga.
 - [x] **Commit e *force-push*** do histórico reescrito (`c3f1cb9`). O fork do
       Jefferson foi alinhado com `git reset --hard upstream/main` e *force-push*.
       A versão anterior dele ficou na rama `respaldo-jefferson` desse fork, com o

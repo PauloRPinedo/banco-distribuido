@@ -1,7 +1,7 @@
 # Testar a tolerância a falhas, pela consola
 
 Esta guia mostra como derrubar, isolar e atrasar nós do banco a partir da
-consola, e como confirmar que nenhum dinheiro se perde nem se duplica. Tem duas
+consola, e como confirmar que nenhum dinheiro se perde nem se duplica. Tem três
 partes, com os mesmos testes:
 
 - **[Parte A](#parte-a--num-só-portátil):** os três nós num só portátil, com o
